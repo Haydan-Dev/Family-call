@@ -1,7 +1,7 @@
 import uuid
 import datetime as dt
 from pydantic import BaseModel, Field
-users = {
+user = {
     "user_id" : str(uuid.uuid4()),
     "full_name" : "",
     "email" : "",
