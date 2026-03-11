@@ -1,18 +1,22 @@
 #imports 
 import uuid
 import datetime as dt
+from pydantic import BaseModel,EmailStr,Field
 # classes and objects
-class User:
-   def __init__(self,full_name,email,password,profile_pic_url):
-      self.user_id = str(uuid.uuid4())
-      self.full_name = full_name
-      self.email = email
-      self.password = password
-      self.profile_pic_url = profile_pic_url
-      self.is_online = False
-      self.last_seen_at = dt.datetime.now()
-      self.created_at =  dt.datetime.now()
-      self.contacts = []
-      self.fcm_tokens = {}
-      self.is_deleted = False
-      self.deleted_at = None
+class User(BaseModel):
+      user_id : str = Field(default_factory=lambda:str(uuid.uuid4()))
+      full_name : str
+      email : EmailStr
+      password : str = Field(
+            min_length = 8,
+            max_length = 12,
+            pattern=r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$"
+         )
+      profile_pic_url : str
+      is_online :bool = False
+      last_seen_at : dt.datetime = Field(default_factory=lambda: dt.datetime.now())
+      created_at : dt.datetime = Field(default_factory=lambda: dt.datetime.now())
+      contacts : list = Field(default_factory=list)
+      fcm_tokens : dict = Field(default_factory=dict)
+      is_deleted : bool = False
+      deleted_at : dt.datetime | None = None
