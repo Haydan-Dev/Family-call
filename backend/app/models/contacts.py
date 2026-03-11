@@ -1,12 +1,12 @@
 import uuid
 import datetime as dt
-user_contact = {
-    "id": uuid.uuid4(),
-    "owner_id": uuid.uuid4(),
-    "contact_user_id": uuid.uuid4(),
-    "nickname" : "",
-    "is_pinned" : False,
-    "is_blocked" : False,
-    "created_at" : dt.datetime.now(),
-    "updated_at": dt.datetime.now(),
-}
+from pydantic import BaseModel,Field
+class User_Contact(BaseModel):
+    id : str = Field(default_factory=lambda:str(uuid.uuid4()))
+    owner_id : str 
+    contact_user_id : str 
+    nickname : str | None = None
+    is_pinned : bool = False
+    is_blocked : bool = False
+    created_at : dt.datetime = Field(default_factory=lambda:dt.datetime.now())
+    updated_at: dt.datetime = Field(default_factory=lambda:dt.datetime.now())
