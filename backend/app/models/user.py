@@ -1,17 +1,14 @@
 #imports 
 import uuid
 import datetime as dt
-from pydantic import BaseModel,EmailStr,Field
+from pydantic import BaseModel,EmailStr,Field,field_validator
+from app.utils.validators import Check_password 
 # classes and objects
 class User(BaseModel):
       user_id : str = Field(default_factory=lambda:str(uuid.uuid4()))
       full_name : str
       email : EmailStr
-      password : str = Field(
-            min_length = 8,
-            max_length = 12,
-            pattern=r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$"
-         )
+      password : str    
       profile_pic_url : str
       is_online :bool = False
       last_seen_at : dt.datetime = Field(default_factory=lambda: dt.datetime.now())
@@ -20,3 +17,8 @@ class User(BaseModel):
       fcm_tokens : dict = Field(default_factory=dict)
       is_deleted : bool = False
       deleted_at : dt.datetime | None = None
+
+      @field_validator("password")
+      @classmethod
+      def password_validation_field(cls,value):
+            return Check_password(value)
