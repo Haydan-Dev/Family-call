@@ -2,7 +2,7 @@
 import pymongo
 # handling database fetching from mongodb using pymongo lib and variables
 def get_database():
-    client = pymongo.MongoClient("mongodb://localhost:27017/Family-call")
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
     db = client["Family-call"]
     return db
 
