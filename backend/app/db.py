@@ -1,17 +1,20 @@
 # importing pymongo,uuid,datetime to use it
-import pymongo
+from motor.motor_asyncio import AsyncIOMotorClient
+import asyncio
 # handling database fetching from mongodb using pymongo lib and variables
 def get_database():
-    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    client = AsyncIOMotorClient("mongodb://localhost:27017/")
     db = client["Family-call"]
     return db
 
+async def main():
 # Using __name__ = "main" best practices in python for databases 
-if __name__ == "__main__":
     get_db = get_database()
     try:
-        if(get_db.command("ping")):
+        if(await get_db.command("ping")):
             print("Database is Connected Successfully")
     except Exception as e:
         print(f"Connection Failed: {e}")
-        
+
+if __name__ == "__main__":
+     asyncio.run(main())

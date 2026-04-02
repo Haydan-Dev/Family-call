@@ -1,8 +1,12 @@
 #imports 
 import uuid
 import datetime as dt
-from pydantic import BaseModel,EmailStr,Field,field_validator
-from app.utils.validators import Check_password 
+from pydantic import BaseModel,EmailStr,Field
+
+# from pydantic import field_validator
+# from app.utils.validators import Check_password 
+# from core.security import hashed_password 
+
 # classes and objects
 class User(BaseModel):
       user_id : str = Field(default_factory=lambda:str(uuid.uuid4()))
@@ -18,7 +22,8 @@ class User(BaseModel):
       is_deleted : bool = False
       deleted_at : dt.datetime | None = None
 
-      @field_validator("password")
-      @classmethod
-      def password_validation_field(cls,value):
-            return Check_password(value)
+      # @field_validator("password")
+      # @classmethod
+      # def password_validation_field(cls,value):
+      #       return Check_password(value)
+
