@@ -4,13 +4,15 @@
 from fastapi import APIRouter
 from app.models.user import User
 from app.db import get_database
-from core.security import PasswordHelper 
-from utils.validators import Check_password
+from app.core.security import PasswordHelper 
+from app.utils.validators import Check_password
 from fastapi import HTTPException
+import bcrypt
+from pymongo.errors import DuplicateKeyError
 
 # router may kuch prefic daala taaki har api routes may bar bar user naa likhna pade mujhe
 router = APIRouter(
-    prefix="/user",
+    prefix="/users",
     tags=["Users"]
 )
 db = get_database()
@@ -41,6 +43,28 @@ async def signup(user_data:User):
         user_dict["_id"] = str(result.inserted_id)
         # frontend ko return may success message dikha ya and ho gaya
         return {"message": "Account created successfully." , "user_id":user_dict["_id"],"user_email":user_dict["email"]}
+    # agar exist karta haai to phir ye httpexception error dega 
+    except DuplicateKeyError:
+        # Sirf tabhi 409 dena jab email/id sach mein duplicate ho
+        raise HTTPException(status_code=409, detail="User already exists, please login")
     except Exception as e:
-        # agar exist karta haai to phir ye httpexception error dega 
-        raise HTTPException(status_code = 409, detail = "user already exist, please login")
+        # Agar koi aur error hai (DB connection, code bug), toh ye terminal mein dikhega
+        print(f"💀 MANIAC DEBUGGER - ASLI ERROR YE HAI: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error. Check Terminal!")
+        
+        
+
+# ye login ki api hai 
+@router.post("/login")
+async def login(user_data:User):
+    user_data.email = user_data.email.lower()
+    existing_login = await db.users.find_one({"email":user_data.email})
+    if not existing_login:
+        raise HTTPException(status_code=401,detail="Invalid Email or Password")
+    hash_check = bcrypt.checkpw(user_data.password.encode("utf-8"),existing_login["password"].encode("utf-8"))
+    if not hash_check:
+        raise HTTPException(status_code=401,detail="Invalid Email or Password")
+    result = user_data.model_dump() 
+    return {"Message":"Login Successfull","login_email":result["email"],"login_id":str(existing_login["_id"])}
+    
+    

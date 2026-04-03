@@ -1,7 +1,7 @@
 # importing pymongo,uuid,datetime to use it
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
-from core.config import settings    
+from app.core.config import settings    
 # handling database fetching from mongodb using pymongo lib and variables
 def get_database():
     client = AsyncIOMotorClient(settings.MONGO_URL)
