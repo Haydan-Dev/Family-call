@@ -65,4 +65,3 @@ async def login(user_data:UserLogin):
         raise HTTPException(status_code=401,detail="Invalid Email or Password")
     await db.users.update_one({"_id":existing_login["_id"]},{"$set":{"last_login_at":dt.datetime.now()}})
     return {"Message":"Login Successfull","login_email":user_data.email,"login_id":str(existing_login["_id"])}
-    
