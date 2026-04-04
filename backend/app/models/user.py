@@ -17,6 +17,8 @@ class User(BaseModel):
       fcm_tokens : dict = Field(default_factory=dict)
       is_deleted : bool = False
       deleted_at : dt.datetime | None = None
-      # last_login_at : dt.datetime # abhi kaam baaki hai 
-      
+      last_login_at: dt.datetime | None = None
 
+class UserLogin(BaseModel):
+      email: EmailStr
+      password: str

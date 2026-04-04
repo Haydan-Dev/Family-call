@@ -2,14 +2,14 @@
 
 # IMP imports 
 from fastapi import APIRouter
-from app.models.user import User
+from app.models.user import User,UserLogin
 from app.db import get_database
 from app.core.security import PasswordHelper 
 from app.utils.validators import Check_password
 from fastapi import HTTPException
 import bcrypt
 from pymongo.errors import DuplicateKeyError
-
+import datetime as dt
 # router may kuch prefic daala taaki har api routes may bar bar user naa likhna pade mujhe
 router = APIRouter(
     prefix="/users",
@@ -53,10 +53,9 @@ async def signup(user_data:User):
         raise HTTPException(status_code=500, detail="Internal Server Error. Check Terminal!")
         
         
-
 # ye login ki api hai 
 @router.post("/login")
-async def login(user_data:User):
+async def login(user_data:UserLogin):
     user_data.email = user_data.email.lower()
     existing_login = await db.users.find_one({"email":user_data.email})
     if not existing_login:
@@ -64,7 +63,6 @@ async def login(user_data:User):
     hash_check = bcrypt.checkpw(user_data.password.encode("utf-8"),existing_login["password"].encode("utf-8"))
     if not hash_check:
         raise HTTPException(status_code=401,detail="Invalid Email or Password")
-    result = user_data.model_dump() 
-    return {"Message":"Login Successfull","login_email":result["email"],"login_id":str(existing_login["_id"])}
-    
+    await db.users.update_one({"_id":existing_login["_id"]},{"$set":{"last_login_at":dt.datetime.now()}})
+    return {"Message":"Login Successfull","login_email":user_data.email,"login_id":str(existing_login["_id"])}
     
