@@ -10,4 +10,4 @@ class Conversation(BaseModel):
     participant_ids: list[str] = Field(default_factory=list)
     last_message: str | None = None
     last_message_at : dt.datetime | None = None
-    created_at : dt.datetime = Field(default_factory=lambda:dt.datetime.now()) 
+    created_at : dt.datetime = Field(default_factory=lambda:dt.datetime.now(dt.timezone.utc)) 

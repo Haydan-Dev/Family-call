@@ -8,7 +8,7 @@ class Call_logs(BaseModel):
     receiver_id : str 
     call_type : Literal["audio","video"]
     status : Literal["ringing", "ongoing", "missed", "rejected", "ended"] = "ringing"
-    started_at : dt.datetime = Field(default_factory=lambda:dt.datetime.now())
+    started_at : dt.datetime = Field(default_factory=lambda:dt.datetime.now(dt.timezone.utc))
     ended_at : dt.datetime | None = None
     duration : int | None = None
     disconnected_by: str |None = None

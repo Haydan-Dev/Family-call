@@ -10,6 +10,8 @@ from fastapi import HTTPException
 import bcrypt
 from pymongo.errors import DuplicateKeyError
 import datetime as dt
+import logging
+logger = logging.getLogger(__name__)
 # router may kuch prefic daala taaki har api routes may bar bar user naa likhna pade mujhe
 router = APIRouter(
     prefix="/users",
@@ -35,9 +37,6 @@ async def signup(user_data:User):
         # abb sab sahi hai to db may user ko insert karo signup ho gaya 
         # id ko result may save karo aage kaam
         result = await db.users.insert_one(user_dict)
-        # user ko success message ke liye frontend ko dene ke liye user waapis dena hiaa issi liye password ko idhar se delete karo,
-        # wo db may safe hai 
-        del user_dict["password"]
         # db json samjhta hai and python class and str issi liye id ko object se str bana na pada 
         # taaki python id ko samjh sake
         user_dict["_id"] = str(result.inserted_id)
@@ -49,7 +48,7 @@ async def signup(user_data:User):
         raise HTTPException(status_code=409, detail="User already exists, please login")
     except Exception as e:
         # Agar koi aur error hai (DB connection, code bug), toh ye terminal mein dikhega
-        print(f"💀 MANIAC DEBUGGER - ASLI ERROR YE HAI: {e}")
+        logger.error(f"System Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error. Check Terminal!")
         
         
@@ -63,5 +62,5 @@ async def login(user_data:UserLogin):
     hash_check = bcrypt.checkpw(user_data.password.encode("utf-8"),existing_login["password"].encode("utf-8"))
     if not hash_check:
         raise HTTPException(status_code=401,detail="Invalid Email or Password")
-    await db.users.update_one({"_id":existing_login["_id"]},{"$set":{"last_login_at":dt.datetime.now()}})
+    await db.users.update_one({"_id":existing_login["_id"]},{"$set":{"last_login_at":dt.datetime.now(dt.timezone.utc)}})
     return {"Message":"Login Successfull","login_email":user_data.email,"login_id":str(existing_login["_id"])}

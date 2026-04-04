@@ -13,5 +13,5 @@ class Message(BaseModel):
     is_forwarded : bool = False
     reply_to_message_id : str | None = None
     is_edited : bool = False
-    created_at : dt.datetime =  Field(default_factory=lambda: dt.datetime.now())
-    updated_at : dt.datetime =  Field(default_factory=lambda: dt.datetime.now())
+    created_at : dt.datetime =  Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
+    updated_at : dt.datetime =  Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
