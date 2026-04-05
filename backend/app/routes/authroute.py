@@ -12,12 +12,19 @@ from pymongo.errors import DuplicateKeyError
 import datetime as dt
 import logging
 logger = logging.getLogger(__name__)
+import os 
+import jwt
+from dotenv import load_dotenv 
 # router may kuch prefic daala taaki har api routes may bar bar user naa likhna pade mujhe
 router = APIRouter(
     prefix="/users",
     tags=["Users"]
 )
+
 db = get_database()
+
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # signup karne ka route hai ye 
 @router.post("/signup")
@@ -40,8 +47,15 @@ async def signup(user_data:User):
         # db json samjhta hai and python class and str issi liye id ko object se str bana na pada 
         # taaki python id ko samjh sake
         user_dict["_id"] = str(result.inserted_id)
+        # jwt token ko bana ke ne liye dictionary iss ki zarurat hai ,
+        # kyu ki iss may user ka db _id and  uss ke token session ki expry date hoti hai 
+        # Note id ko string banana zaruri hai db waali id ko python samjh nahi paata hai issiliye str()
+        token = {"sub":str(user_dict["_id"]),"exp":dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=7)}
+        # idhar real tken ban raha hai token,screkt_kay,and ussko banane ka algorithm ko ek .encode() method may daalo  
+        # method jo ki jwt se ki buit in milta hai ,uss ko  ek variable encoded_jwt may save kardo
+        encoded_jwt = jwt.encode(token,SECRET_KEY,algorithm ="HS256")
         # frontend ko return may success message dikha ya and ho gaya
-        return {"message": "Account created successfully." , "user_id":user_dict["_id"],"user_email":user_dict["email"]}
+        return {"message": "Account created successfully." , "access_token":encoded_jwt,"user_email":user_dict["email"]}
     # agar exist karta haai to phir ye httpexception error dega 
     except DuplicateKeyError:
         # Sirf tabhi 409 dena jab email/id sach mein duplicate ho
@@ -49,7 +63,7 @@ async def signup(user_data:User):
     except Exception as e:
         # Agar koi aur error hai (DB connection, code bug), toh ye terminal mein dikhega
         logger.error(f"System Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error. Check Terminal!")
+        raise HTTPException(status_code=500, detail="Internal Server Error. Check Terminal or Error_Log!")
         
         
 # ye login ki api hai 
@@ -63,4 +77,12 @@ async def login(user_data:UserLogin):
     if not hash_check:
         raise HTTPException(status_code=401,detail="Invalid Email or Password")
     await db.users.update_one({"_id":existing_login["_id"]},{"$set":{"last_login_at":dt.datetime.now(dt.timezone.utc)}})
-    return {"Message":"Login Successfull","login_email":user_data.email,"login_id":str(existing_login["_id"])}
+    # jwt token ko bana ke ne liye dictionary iss ki zarurat hai ,
+    # kyu ki iss may user ka db _id and  uss ke token session ki expry date hoti hai 
+    # Note id ko string banana zaruri hai db waali id ko python samjh nahi paata hai issiliye str()
+    token = {"sub":str(existing_login["_id"]),"exp":dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=7)}
+    # idhar real tken ban raha hai token,screkt_kay,and ussko banane ka algorithm ko ek .encode() method may daalo  
+    # method jo ki jwt se ki buit in milta hai ,uss ko  ek variable encoded_jwt may save kardo
+    encoded_jwt = jwt.encode(token,SECRET_KEY,algorithm ="HS256")
+    # frontend ko return may success message dikha ya and ho gaya
+    return {"Message":"Login Successfull","login_email":user_data.email,"access_token":encoded_jwt}

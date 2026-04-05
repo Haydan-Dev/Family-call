@@ -3,7 +3,6 @@ import datetime as dt
 from pydantic import BaseModel,Field
 from typing import Literal
 class Call_logs(BaseModel):
-    call_id :  str = Field(default_factory=lambda:str(uuid.uuid4()))
     caller_id : str 
     receiver_id : str 
     call_type : Literal["audio","video"]

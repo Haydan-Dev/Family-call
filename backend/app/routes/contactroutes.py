@@ -4,6 +4,8 @@ from fastapi import APIRouter
 # app folder se db.py file may se get_database() functio / method ko bulaya,
 # taaki db ko access karsake iss file may 
 from app.db import get_database
+# contact.py model folder may se contact_user class ko bulaana padega 
+from app.models.contacts import User_Contact
 # router may kuch prefix daala taaki api ko bar bar routes api may contact naa dena pade
 router = APIRouter(
     prefix="/contacts",
@@ -15,7 +17,7 @@ db = get_database()
 # idhar se api banana shuru:
 # 1. contact ko save karne ki api
 @router.post("/save")
-async def save_contact():
+async def save_contact(contact_data:User_Contact):
     pass
 
 # 2. contact ko delete karne ki api

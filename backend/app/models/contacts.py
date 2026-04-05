@@ -1,6 +1,6 @@
 import uuid
 import datetime as dt
-from pydantic import BaseModel,Field
+from pydantic import BaseModel,Field,EmailStr
 class User_Contact(BaseModel):
     owner_id : str 
     contact_user_id : str 
@@ -9,3 +9,7 @@ class User_Contact(BaseModel):
     is_blocked : bool = False
     created_at : dt.datetime = Field(default_factory=lambda:dt.datetime.now(dt.timezone.utc))
     updated_at: dt.datetime = Field(default_factory=lambda:dt.datetime.now(dt.timezone.utc))
+
+class Contact_save(BaseModel):
+    contact_email:EmailStr
+    contact_nickname: str

@@ -2,7 +2,6 @@ import uuid
 import datetime as dt
 from pydantic import BaseModel,Field
 class Conversation(BaseModel):
-    chat_id : str = Field(default_factory=lambda:str(uuid.uuid4()))
     is_group : bool = False
     group_name : str | None = None
     group_icon : str | None = None

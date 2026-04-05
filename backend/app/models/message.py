@@ -3,7 +3,6 @@ import datetime as dt
 from pydantic import BaseModel,Field
 from typing import Literal
 class Message(BaseModel):
-    id : str = Field(default_factory=lambda : str(uuid.uuid4()))
     chat_id : str 
     sender_id : str
     message_type : Literal["text", "image", "video", "audio", "doc", "location"]
