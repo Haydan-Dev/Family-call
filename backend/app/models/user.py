@@ -6,7 +6,7 @@ from typing import Optional
 
 # classes and objects
 class User(BaseModel):
-      full_name : Optional["str"] | None = None
+      full_name : str 
       email : EmailStr  
       password : str    
       profile_pic_url : Optional["str"] | None = None
