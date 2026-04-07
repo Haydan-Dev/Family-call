@@ -13,6 +13,9 @@ from app.models.contacts import Contact_save,User_Contact
 from app.core.security import get_current_user_token
 # erro handling ke liye httpsException
 from fastapi import HTTPException
+# delete ke liye hamme object id , db ke under docs ki banne waali id chahiye uss ke liye iss ko import karna hai
+from bson import ObjectId
+from bson.errors import InvalidId
 
 # router may kuch prefix daala taaki api ko bar bar routes api may contact naa dena pade
 router = APIRouter(
@@ -56,12 +59,33 @@ async def save_contact(contact_data:Contact_save,user_id: str = Depends(get_curr
 
 
 
-# 2. contact ko delete karne ki api
+# 2. contact ko delete karne ki api 
 @router.delete("/delete/{contact_id}")
-async def delete_contact():
-    pass
+# contact id wohi id hai jo save contact api 
+# se db may contact ke save hone pe uss document ko di jaati hai 
+async def delete_contact(contact_id:str,user_id:str = Depends(get_current_user_token)):
+    try:
+        valid_object_id = ObjectId(contact_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid Contact ID format")
+    # contact exist karta hai yaa nahi ye dekhne ki zaruat nahi hai 
+    # delete use karne pe agar exist karta hai to delete karega , agar contact exist nahi karta hai to error dega issi liye
+    # hamme iss ko if else ke under daalna karna hoga
+    delete_result = await db.contacts.delete_one({"_id":valid_object_id,"owner_id":user_id})
+    if delete_result.deleted_count == 1:
+        return {"Message":"Contact Deleted Successfully", "_id":str(valid_object_id), "user_id":user_id}
+    else:
+        raise HTTPException(status_code=404,detail="Contact Not Found")
+
 
 # 3. contact ko find/search karne ki api
-@router.get("/search_contact/{nickname}")
-async def search_contact():
-    pass
+@router.get("/search_contact/{contact_nickname}")
+async def search_contact(contact_nickname:str,user_id:str = Depends(get_current_user_token)):
+    search_result = await db.contacts.find({"contact_nickname": {"$regex": contact_nickname, "$options": "i"},"owner_id":user_id}).to_list(length=100) # ye regx jo hai wo , no-casesensitivity ke liye use kiya hai mayne
+    if len(search_result) > 0:
+        for contacts in search_result:
+            contacts["_id"] = str(contacts["_id"])
+        total_contact_found = len(search_result)
+        return {"number": total_contact_found,"Message":"Contact Found","contacts":search_result}
+    else:
+        return{"number": 0, "Message": "Contact Not Found", "contacts": []}
