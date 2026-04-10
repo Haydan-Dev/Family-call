@@ -36,3 +36,9 @@ async def create_conversation(contact_id:str,user_id: str = Depends(get_current_
     else:
         new_room = await db.conversations.insert_one({"participant_ids":[caller_id,reciever_id]}) 
         return {"Status": "New Room Created Sucessfully","new_room_id":str(new_room.inserted_id)}
+    
+# conversation search karne ki api hai , abhi delete karne ke bhi banegi
+@router.get("/display_conversations")
+async def search_conversation(user_id: str = Depends(get_current_user_token)):
+    find_conversations = await db.conversations.find({"participant_ids":user_id})
+    if find_conversations:
