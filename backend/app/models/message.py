@@ -1,9 +1,8 @@
-import uuid
 import datetime as dt 
 from pydantic import BaseModel,Field
 from typing import Literal
 class Message(BaseModel):
-    chat_id : str 
+    conversation_id : str 
     sender_id : str
     message_type : Literal["text", "image", "video", "audio", "doc", "location"]
     content : str       
@@ -14,3 +13,7 @@ class Message(BaseModel):
     is_edited : bool = False
     created_at : dt.datetime =  Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
     updated_at : dt.datetime =  Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
+
+class First_Time_Create_Message:
+    message_type : Literal["text", "image", "video", "audio", "doc", "location"]
+    content : str       
