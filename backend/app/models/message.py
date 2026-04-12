@@ -14,6 +14,6 @@ class Message(BaseModel):
     created_at : dt.datetime =  Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
     updated_at : dt.datetime =  Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
 
-class First_Time_Create_Message:
+class First_Message(BaseModel):
     message_type : Literal["text", "image", "video", "audio", "doc", "location"]
     content : str       
