@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from app.routes.authroute import router  as user_router
 from app.routes.contactroutes import router as contact_router
 from app.routes.conversationsroutes import router as conversation_router
+from app.routes.messageroutes import router as message_router
+from app.routes.callroutes import router as call_router
 app = FastAPI()
 
 @app.get("/")
@@ -11,3 +13,5 @@ def Home():
 app.include_router(user_router)
 app.include_router(contact_router)  
 app.include_router(conversation_router)
+app.include_router(message_router)
+app.include_router(call_router)
