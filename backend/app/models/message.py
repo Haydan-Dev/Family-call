@@ -16,4 +16,8 @@ class Message(BaseModel):
 
 class First_Message(BaseModel):
     message_type : Literal["text", "image", "video", "audio", "doc", "location"]
-    content : str       
+    content : str
+
+class Edit_Message(BaseModel):
+    message_type : Literal["text", "image", "video", "audio", "doc", "location"]
+    content : str             
