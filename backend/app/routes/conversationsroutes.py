@@ -16,25 +16,25 @@ router = APIRouter(
 async def create_conversation(contact_id:str,user_id: str = Depends(get_current_user_token)):
     email = ""
     nickname = "" # just in case aage jaake zarurat pade to 
-    reciever_id = ""
+    receiver_id = ""
     participant_list = await db.contacts.find_one({"_id":contact_id})
     if participant_list:
         email = participant_list["contact_email"]
         nickname = participant_list["contact_nickname"]  # just in case aage jaake zarurat pade to ?
         user_data = await db.user.find_one({"email":email})
         if user_data:
-            reciever_id = str(user_data["_id"])
+            receiver_id = str(user_data["_id"])
         else:
-            raise HTTPException(status_code=404,detail="Reciever ID Not Found")
+            raise HTTPException(status_code=404,detail="receiver ID Not Found")
     else:
         raise HTTPException(status_code=401,detail="Invalid Contact ID")
     caller_id = user_id
-    check_participation_list = await db.conversations.find_one({"participant_ids": {"$all": [caller_id, reciever_id], "$size": 2}})
+    check_participation_list = await db.conversations.find_one({"participant_ids": {"$all": [caller_id, receiver_id], "$size": 2}})
     if check_participation_list:
         room_id = str(check_participation_list["_id"])
         return {"status": "success", "room_id": room_id}
     else:
-        new_room = await db.conversations.insert_one({"participant_ids":[caller_id,reciever_id]}) 
+        new_room = await db.conversations.insert_one({"participant_ids":[caller_id,receiver_id]}) 
         return {"Status": "New Room Created Sucessfully","new_room_id":str(new_room.inserted_id)}
     
 # conversation search karne ki api hai , abhi delete karne ke bhi banegi

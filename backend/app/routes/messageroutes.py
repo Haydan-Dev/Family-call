@@ -5,6 +5,7 @@ from app.core.security import get_current_user_token
 from bson import ObjectId
 from app.models.message import First_Message, Message ,Edit_Message
 from fastapi import HTTPException 
+import datetime as dt
 
 router = APIRouter(
     prefix="/messages",
@@ -43,7 +44,7 @@ async def messages_history(conversation_id: str,user_id:str = Depends(get_curren
     sender_id = user_id
     search_result = await db.conversations.find_one({"_id":chat_id,"participant_ids":sender_id})
     if search_result:
-        chat_history = await db.messages.find({"conversation_id":str(chat_id)}).sort("created_at",1).to_list(length=75)
+        chat_history = await db.messages.find({"conversation_id":str(chat_id),"is_deleted": False}).sort("created_at",1).to_list(length=75)
         return{"status":200,"Message":"Chat History Found","Chat":chat_history}
     else:
         raise HTTPException(status_code=404,detail="Conversation ID Not Found")
@@ -54,7 +55,7 @@ async def messages_history(conversation_id: str,user_id:str = Depends(get_curren
 async def delete_messages(message_id: str,user_id:str = Depends(get_current_user_token)):
     sender_id = user_id
     messages_id = ObjectId(message_id) 
-    update_result = await db.messages.update_one({"sender_id":sender_id,"_id":messages_id},{"$set":{"message_type":"text","content":"This Message Was Deleted"}})
+    update_result = await db.messages.update_one({"sender_id":sender_id,"_id":messages_id},{"$set":{"updated_at": dt.datetime.now(dt.timezone.utc),"is_deleted": True,"content":"This Message Was Deleted"}})
     if update_result.modified_count == 1:
         return {"status":200,"Message":"Message Deleted Successfully"}
     else:
@@ -65,6 +66,6 @@ async def delete_messages(message_id: str,user_id:str = Depends(get_current_user
 async def edit_messages(edit_message:Edit_Message,message_id:str,user_id:str=Depends(get_current_user_token)):
     sender_id = user_id
     msg_id = ObjectId(message_id)
-    edit_result = await db.messages.update_one({"sender_id":sender_id,"_id":msg_id},{"$set":{"message_type":edit_message.message_type,"content":edit_message.content,"is_edited":True}})
+    edit_result = await db.messages.update_one({"sender_id":sender_id,"_id":msg_id},{"$set":{"content":edit_message.content,"is_edited":True,"updated_at": dt.datetime.now(dt.timezone.utc)}})
     if edit_result.modified_count ==1:
         return {"status":200,"Message":"Message Edited Successfully"}

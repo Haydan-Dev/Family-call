@@ -20,7 +20,7 @@ db = get_database()
 @router.post("/start")
 async def call_initialize(call_data:callrequest,user_id:str = Depends(get_current_user_token)):
     caller_id = user_id
-    # reciever_id = call_data.receiver_id
+    # receiver_id = call_data.receiver_id
     # call_type = call_data.call_type
     new_call = Call_logs(caller_id=caller_id,**call_data.model_dump()).model_dump()
     insert_result = await db.calls.insert_one(new_call)
