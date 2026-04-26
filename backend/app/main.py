@@ -11,7 +11,7 @@ from app.routes.messageroutes import router as message_router
 from app.routes.callroutes import router as call_router
 from app.websockets.websocket_routes import router as websocket_router
 from app.routes.upload_routes import router as upload_router
-
+from app.core.middlewares import core
 
 # Lifespan - Server start aur stop hone ka Engine
 @asynccontextmanager
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
 
 # Lifespan ko app ke sath jodo
 app = FastAPI(lifespan=lifespan)
+core(app)
 
 # STATIC MOUNT: 'app/static' folder ko public access de raha hai taki frontend files dekh sake
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

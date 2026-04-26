@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Hamnasheen - Home</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    width: 100%; min-height: 100vh;
+    background: #111111;
+    font-family: 'DM Sans', sans-serif;
+    color: #FFFFFF;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Soft warm glow effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -10%; left: 50%;
+    transform: translateX(-50%);
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,199,0,0.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* LAYERS SYSTEM */
+  .app-container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 430px; /* Mobile first */
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #111111;
+    overflow: hidden;
+  }
+
+  /* --- HEADER --- */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 24px 16px;
+    border-bottom: 1px solid rgba(255,199,0,0.1);
+    background: rgba(17, 17, 17, 0.8);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .app-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #FFFFFF;
+    letter-spacing: -0.01em;
+  }
+  .app-name em {
+    font-style: italic;
+    font-weight: 400;
+    color: #FFC700;
+  }
+  .logout-btn {
+    background: transparent;
+    border: none;
+    color: #A0A0A0;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .logout-btn:hover, .logout-btn:active {
+    color: #FFC700;
+  }
+
+  /* --- LAYER 1: MAIN DASHBOARD (CHATS) --- */
+  .main-dashboard {
+    flex: 1;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .spinner {
+    width: 24px; height: 24px;
+    border: 2px solid rgba(255,199,0,0.3);
+    border-top-color: #FFC700;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
+    opacity: 0;
+    animation: appear 0.6s ease forwards;
+  }
+
+  .state-box.hidden { display: none !important; }
+
+  .state-icon {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: rgba(255,199,0,0.05);
+    border: 1px solid rgba(255,199,0,0.15);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .state-icon svg { width: 32px; height: 32px; color: #FFC700; }
+  .state-box h2 { font-size: 20px; font-weight: 500; margin-bottom: 8px; color: #FFFFFF; }
+  .state-box p { font-size: 14px; color: #A0A0A0; line-height: 1.6; max-width: 240px; }
+
+  /* Lists */
+  .list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 100px;
+  }
+
+  .card-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: appear 0.4s ease forwards;
+    transition: background 0.2s, border-color 0.2s;
+    cursor: pointer;
+  }
+  .card-item:active {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 199, 0, 0.3);
+  }
+
+  .avatar {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255,199,0,0.2), rgba(255,199,0,0.05));
+    border: 1px solid rgba(255,199,0,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #FFC700;
+  }
+
+  .info { flex: 1; overflow: hidden; }
+  .name-text { font-size: 16px; font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px;}
+  .sub-text { font-size: 13px; color: #A0A0A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+  
+  .badge-icon { width: 14px; height: 14px; color: #FFC700; flex-shrink: 0;}
+
+  /* Context Menu */
+  .context-menu {
+    position: absolute;
+    background: #1A1A1A;
+    border: 1px solid rgba(255, 199, 0, 0.15);
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 180px;
+  }
+  .ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #FFFFFF;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .ctx-item:hover {
+    background: rgba(255, 199, 0, 0.05);
+    color: #FFC700;
+  }
+  .ctx-item.delete:hover {
+    background: rgba(255, 59, 48, 0.1);
+    color: #FF3B30;
+  }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 32px;
+    right: max(24px, calc(50% - 190px));
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: #FFC700;
+    color: #111111;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 24px rgba(255, 199, 0, 0.25);
+    cursor: pointer;
+    border: none;
+    z-index: 20;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .fab:hover, .fab:active {
+    transform: scale(0.95);
+    box-shadow: 0 4px 16px rgba(255, 199, 0, 0.3);
+  }
+
+  /* --- LAYER 2: CONTACTS SLIDER --- */
+  .contacts-slider {
+    position: fixed;
+    top: 100vh; /* Start off screen */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 430px;
+    height: 100vh;
+    background: #111111;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    transition: top 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .contacts-slider.active {
+    top: 0;
+  }
+
+  .slider-header {
+    display: flex;
+    align-items: center;
+    padding: 24px;
+    border-bottom: 1px solid rgba(255,199,0,0.1);
+    background: #111111;
+  }
+
+  .close-slider-btn {
+    background: transparent;
+    border: none;
+    color: #FFFFFF;
+    margin-right: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .slider-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #FFFFFF;
+  }
+
+  .slider-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .add-contact-btn {
+    width: 100%;
+    padding: 16px;
+    border-radius: 16px;
+    background: rgba(255, 199, 0, 0.1);
+    color: #FFC700;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    border: 1px dashed rgba(255, 199, 0, 0.3);
+    cursor: pointer;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
+  }
+  .add-contact-btn:active { background: rgba(255, 199, 0, 0.15); }
+
+  /* --- LAYER 3: MODAL OVERLAY --- */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .modal-overlay.active { display: flex; opacity: 1; }
+
+  .modal {
+    background: #1A1A1A;
+    border: 1px solid rgba(255, 199, 0, 0.15);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 360px;
+    padding: 24px;
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+  .modal-overlay.active .modal { transform: translateY(0); }
+
+  .modal-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: #FFFFFF; font-family: 'Playfair Display', serif; }
+  .modal-form { display: flex; flex-direction: column; gap: 16px; }
+  .modal-input {
+    width: 100%; padding: 14px 16px; border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04); color: #FFFFFF;
+    font-family: 'DM Sans', sans-serif; font-size: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1); outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .modal-input:focus { border-color: #FFC700; background: rgba(255, 199, 0, 0.05); }
+  .modal-input::placeholder { color: #A0A0A0; }
+
+  .modal-actions { display: flex; gap: 12px; margin-top: 24px; }
+  .btn-modal { flex: 1; padding: 14px; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; border: none; transition: transform 0.2s; }
+  .btn-modal:active { transform: scale(0.98); }
+  .btn-cancel { background: transparent; color: #A0A0A0; border: 1px solid rgba(255, 255, 255, 0.1); }
+  .btn-save { background: #FFC700; color: #111111; }
+
+  @keyframes appear {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  
+  <!-- --- LAYER 1: MAIN DASHBOARD --- -->
+  <header>
+    <div class="app-name">Ham<em>nasheen</em></div>
+    <button class="logout-btn" id="logoutBtn">
+      <span>Logout</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+        <polyline points="16 17 21 12 16 7"></polyline>
+        <line x1="21" y1="12" x2="9" y2="12"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main class="main-dashboard">
+    <!-- Chats Loading -->
+    <div class="state-box" id="chatsLoading">
+      <div class="spinner"></div>
+      <p>Loading recent chats...</p>
+    </div>
+
+    <!-- Chats Empty -->
+    <div class="state-box hidden" id="chatsEmpty">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          <line x1="12" y1="9" x2="12" y2="15"></line>
+          <line x1="9" y1="12" x2="15" y2="12"></line>
+        </svg>
+      </div>
+      <h2>No recent chats</h2>
+      <p>Tap the + button to start a conversation with your family.</p>
+    </div>
+
+    <!-- Chats List -->
+    <div class="list-container hidden" id="chatsList">
+      <!-- Chat items injected here -->
+    </div>
+  </main>
+
+  <!-- FAB -->
+  <button class="fab" id="openSliderBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      <line x1="12" y1="9" x2="12" y2="15"></line>
+      <line x1="9" y1="12" x2="15" y2="12"></line>
+    </svg>
+  </button>
+
+  <!-- --- LAYER 2: CONTACTS SLIDER --- -->
+  <div class="contacts-slider" id="contactsSlider">
+    <div class="slider-header">
+      <button class="close-slider-btn" id="closeSliderBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      <div class="slider-title">Select Contact</div>
+    </div>
+    
+    <div class="slider-body">
+      <button class="add-contact-btn" id="openAddContactModalBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Add New Family Member
+      </button>
+
+      <!-- Contacts Loading -->
+      <div class="state-box hidden" id="contactsLoading">
+        <div class="spinner"></div>
+      </div>
+
+      <!-- Contacts Empty -->
+      <div class="state-box hidden" id="contactsEmpty">
+        <p>No contacts saved yet.</p>
+      </div>
+
+      <!-- Contacts List -->
+      <div class="list-container hidden" id="contactsList">
+        <!-- Contact items injected here -->
+      </div>
+    </div>
+  </div>
+
+</div> <!-- end app-container -->
+
+<!-- --- LAYER 3: ADD CONTACT MODAL --- -->
+<div class="modal-overlay" id="contactModal">
+  <div class="modal">
+    <div class="modal-title">Add New Contact</div>
+    <form class="modal-form" id="addContactForm">
+      <input type="text" id="contactNickname" class="modal-input" placeholder="Nickname" required />
+      <input type="email" id="contactEmail" class="modal-input" placeholder="Email Address" required />
+      <div class="modal-actions">
+        <button type="button" class="btn-modal btn-cancel" id="cancelModalBtn">Cancel</button>
+        <button type="submit" class="btn-modal btn-save">Save Contact</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // --- 1. Core Setup & Auth Check ---
+  const token = localStorage.getItem('token');
+  if (!token) {
+    window.location.href = '03_login.html';
+    return;
+  }
+
+  const BASE_URL = 'http://127.0.0.1:8000';
+  const HEADERS = {
+    'Authorization': 'Bearer ' + token,
+    'Content-Type': 'application/json'
+  };
+
+  function authFetch(url, options = {}) {
+    return fetch(url, { ...options, headers: HEADERS }).then(res => {
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '03_login.html';
+        throw new Error('Unauthorized');
+      }
+      return res;
+    });
+  }
+
+  // --- 2. Element References ---
+  // Layer 1
+  const chatsLoading = document.getElementById('chatsLoading');
+  const chatsEmpty = document.getElementById('chatsEmpty');
+  const chatsList = document.getElementById('chatsList');
+  const logoutBtn = document.getElementById('logoutBtn');
+  
+  // Layer 2
+  const contactsSlider = document.getElementById('contactsSlider');
+  const openSliderBtn = document.getElementById('openSliderBtn');
+  const closeSliderBtn = document.getElementById('closeSliderBtn');
+  const contactsLoading = document.getElementById('contactsLoading');
+  const contactsEmpty = document.getElementById('contactsEmpty');
+  const contactsList = document.getElementById('contactsList');
+
+  // Context Menu Setup
+  const roomContextMenu = document.getElementById('roomContextMenu');
+  let selectedRoomId = null;
+
+  document.addEventListener('click', (e) => {
+    if (roomContextMenu && !roomContextMenu.contains(e.target)) {
+      roomContextMenu.style.display = 'none';
+    }
+  });
+
+  document.querySelectorAll('#roomContextMenu .ctx-item').forEach(item => {
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const action = item.getAttribute('data-action');
+      roomContextMenu.style.display = 'none';
+      if (!selectedRoomId) return;
+
+      try {
+        if (action === 'pin') {
+          await authFetch(`${BASE_URL}/conversations/pin/${selectedRoomId}`, { method: 'PATCH' });
+        } else if (action === 'archive') {
+          await authFetch(`${BASE_URL}/conversations/archive/${selectedRoomId}`, { method: 'PATCH' });
+        } else if (action === 'delete') {
+          if(confirm('Delete this chat permanently?')) {
+            await authFetch(`${BASE_URL}/conversations/delete_conversations/${selectedRoomId}`, { method: 'DELETE' });
+          }
+        }
+        fetchChats(); // Refresh UI
+      } catch (err) {
+        console.error(err);
+        alert('Action failed');
+      }
+    });
+  });
+
+  // Fetch logic
+  const openAddContactModalBtn = document.getElementById('openAddContactModalBtn');
+
+  // Layer 3
+  const contactModal = document.getElementById('contactModal');
+  const cancelModalBtn = document.getElementById('cancelModalBtn');
+  const addContactForm = document.getElementById('addContactForm');
+
+  // Utility to toggle visibility
+  function showState(showEl, hideEls) {
+    showEl.classList.remove('hidden');
+    hideEls.forEach(el => el.classList.add('hidden'));
+  }
+
+  // --- LAYER 1: FETCH CHATS ---
+  async function fetchChats() {
+    showState(chatsLoading, [chatsEmpty, chatsList]);
+    try {
+      const res = await authFetch(`${BASE_URL}/conversations/display_conversations`, { method: 'GET' });
+      const data = await res.json();
+      
+      let chats = Array.isArray(data) ? data : (data.data || []);
+
+      if (chats.length === 0) {
+        showState(chatsEmpty, [chatsLoading, chatsList]);
+      } else {
+        renderChats(chats);
+        showState(chatsList, [chatsLoading, chatsEmpty]);
+      }
+    } catch (error) {
+      console.error('Error fetching chats:', error);
+      showState(chatsEmpty, [chatsLoading, chatsList]);
+      chatsEmpty.querySelector('p').textContent = "Failed to load recent chats.";
+    }
+  }
+
+  function renderChats(chats) {
+    chatsList.innerHTML = '';
+    chats.forEach((chat, index) => {
+      const roomId = chat.room_id || 'Unknown';
+      const name = chat.contact_name || chat.name || roomId; 
+      const initial = name.charAt(0).toUpperCase();
+      
+      let badges = '';
+      if (chat.is_pinned) {
+        badges += `<svg class="badge-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>`;
+      }
+      if (chat.is_archived) {
+        badges += `<svg class="badge-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>`;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'card-item';
+      card.style.animationDelay = `${index * 0.05}s`;
+      card.innerHTML = `
+        <div class="avatar">${initial}</div>
+        <div class="info">
+          <div class="name-text">${name} ${badges}</div>
+          <div class="sub-text">${chat.last_message || 'Tap to chat'}</div>
+        </div>
+      `;
+      card.addEventListener('click', () => {
+        window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(name)}`;
+      });
+      
+      // Long press / right click logic
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        selectedRoomId = roomId;
+        roomContextMenu.style.display = 'flex';
+        
+        // Prevent menu from going off-screen
+        let posX = e.pageX;
+        let posY = e.pageY;
+        if (posX + 180 > window.innerWidth) posX = window.innerWidth - 190;
+        if (posY + 160 > window.innerHeight) posY = window.innerHeight - 170;
+        
+        roomContextMenu.style.left = `${posX}px`;
+        roomContextMenu.style.top = `${posY}px`;
+      });
+      
+      let pressTimer;
+      card.addEventListener('touchstart', (e) => {
+        pressTimer = window.setTimeout(() => {
+          selectedRoomId = roomId;
+          roomContextMenu.style.display = 'flex';
+          roomContextMenu.style.left = `${e.touches[0].pageX}px`;
+          roomContextMenu.style.top = `${e.touches[0].pageY}px`;
+        }, 600); // 600ms long press
+      });
+      card.addEventListener('touchend', () => {
+        clearTimeout(pressTimer);
+      });
+      card.addEventListener('touchmove', () => {
+        clearTimeout(pressTimer);
+      });
+
+      chatsList.appendChild(card);
+    });
+  }
+
+  // --- LAYER 2: FETCH CONTACTS & START CHAT ---
+  async function fetchContacts() {
+    showState(contactsLoading, [contactsEmpty, contactsList]);
+    try {
+      const res = await authFetch(`${BASE_URL}/contacts/`, { method: 'GET' });
+      const data = await res.json();
+      
+      let contacts = [];
+      if (Array.isArray(data)) contacts = data;
+      else if (data && Array.isArray(data.contacts)) contacts = data.contacts;
+      else if (data && data.data && Array.isArray(data.data)) contacts = data.data;
+
+      if (contacts.length === 0) {
+        showState(contactsEmpty, [contactsLoading, contactsList]);
+      } else {
+        renderContacts(contacts);
+        showState(contactsList, [contactsLoading, contactsEmpty]);
+      }
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+      showState(contactsEmpty, [contactsLoading, contactsList]);
+      contactsEmpty.querySelector('p').textContent = "Failed to load contacts.";
+    }
+  }
+
+  function renderContacts(contacts) {
+    contactsList.innerHTML = '';
+    contacts.forEach((contact, index) => {
+      const contactId = contact._id || contact.id;
+      const name = contact.contact_nickname || contact.name || 'Unknown';
+      const email = contact.contact_email || contact.email || '';
+      const initial = name.charAt(0).toUpperCase();
+
+      const card = document.createElement('div');
+      card.className = 'card-item';
+      card.style.animationDelay = `${index * 0.05}s`;
+      card.innerHTML = `
+        <div class="avatar">${initial}</div>
+        <div class="info">
+          <div class="name-text">${name}</div>
+          <div class="sub-text">${email}</div>
+        </div>
+      `;
+      
+      // Trigger Start Conversation
+      card.addEventListener('click', async () => {
+        if (!contactId) { alert("Contact ID missing."); return; }
+        
+        try {
+          // Visual feedback
+          card.style.opacity = '0.5';
+          const res = await authFetch(`${BASE_URL}/conversations/start_conversation/${contactId}`, {
+             method: 'POST' 
+          });
+          const data = await res.json();
+          const roomId = data.room_id || data.new_room_id || data.id;
+          
+          if (roomId) {
+            window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(name)}`;
+          } else {
+            alert('Failed to get room ID');
+            card.style.opacity = '1';
+          }
+        } catch (error) {
+          console.error("Error starting conversation", error);
+          alert('Could not start conversation.');
+          card.style.opacity = '1';
+        }
+      });
+      
+      contactsList.appendChild(card);
+    });
+  }
+
+  // Slider Interactions
+  openSliderBtn.addEventListener('click', () => {
+    contactsSlider.classList.add('active');
+    fetchContacts(); // Fetch contacts when slider opens
+  });
+
+  closeSliderBtn.addEventListener('click', () => {
+    contactsSlider.classList.remove('active');
+  });
+
+  // --- LAYER 3: ADD CONTACT MODAL ---
+  openAddContactModalBtn.addEventListener('click', () => {
+    contactModal.classList.add('active');
+  });
+
+  cancelModalBtn.addEventListener('click', () => {
+    contactModal.classList.remove('active');
+    addContactForm.reset();
+  });
+
+  contactModal.addEventListener('click', (e) => {
+    if (e.target === contactModal) {
+      contactModal.classList.remove('active');
+      addContactForm.reset();
+    }
+  });
+
+  addContactForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nick_val = document.getElementById('contactNickname').value;
+    const email_val = document.getElementById('contactEmail').value;
+    const submitBtn = addContactForm.querySelector('.btn-save');
+    const originalText = submitBtn.textContent;
+    
+    submitBtn.textContent = 'Saving...';
+    submitBtn.disabled = true;
+
+    try {
+      const res = await authFetch(`${BASE_URL}/contacts/save`, {
+        method: 'POST',
+        body: JSON.stringify({ contact_email: email_val, contact_nickname: nick_val })
+      });
+
+      if (res.status === 200 || res.ok) {
+        contactModal.classList.remove('active');
+        addContactForm.reset();
+        fetchContacts(); // Refresh slider contacts
+      } else if (res.status === 409) {
+        alert('Contact already exists');
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert('Failed to save contact: ' + (errorData.detail || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error saving contact:', error);
+      alert('Error connecting to server.');
+    } finally {
+      submitBtn.textContent = originalText;
+      submitBtn.disabled = false;
+    }
+  });
+
+  // Logout
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('token');
+    window.location.href = '03_login.html';
+  });
+
+  // Initialize App
+  fetchChats();
+
+});
+</script>
+</body>
+
+<!-- Context Menu for Rooms -->
+<div class="context-menu" id="roomContextMenu" style="display: none;">
+  <div class="ctx-item" data-action="pin">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+    <span>Pin / Unpin</span>
+  </div>
+  <div class="ctx-item" data-action="archive">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+    <span>Archive / Unarchive</span>
+  </div>
+  <div class="ctx-item delete" data-action="delete">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+    <span>Delete Chat</span>
+  </div>
+</div>
+
+</html>

@@ -21,3 +21,6 @@ class First_Message(BaseModel):
 
 class Edit_Message(BaseModel):
     content : str             
+
+class ForwardRequest(BaseModel):
+    target_room_id: str
