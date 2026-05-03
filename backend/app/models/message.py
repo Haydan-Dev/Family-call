@@ -6,7 +6,7 @@ class Message(BaseModel):
     sender_id : str
     message_type : Literal["text", "image", "video", "audio", "doc", "location"]
     content : str       
-    status : Literal["sent", "delivered", "seen"] = "sent"
+    status: Literal['sent', 'delivered', 'seen'] = 'sent'
     is_pinned : bool =False
     is_forwarded : bool = False
     reply_to_message_id : str | None = None

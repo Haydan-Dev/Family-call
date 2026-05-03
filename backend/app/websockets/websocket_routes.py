@@ -6,6 +6,7 @@ from jose import jwt, JWTError
 from app.core.config import settings
 import json
 from bson import ObjectId
+from app.models.message import Message
 
 router = APIRouter(
     prefix="/ws",
@@ -21,6 +22,21 @@ async def get_ws_user_id(token: str):
         return user_id
     except JWTError:
         return None
+
+@router.websocket("/global")
+async def global_websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
+    user_id = await get_ws_user_id(token)
+    if not user_id:
+        await websocket.close(code=1008)
+        return
+
+    await manager.connect(websocket, user_id)
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id)
 
 @router.websocket("/chat/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Query(...)):
@@ -52,10 +68,16 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
             data = await websocket.receive_text()
             try:
                 msg_dict = json.loads(data)
-            except json.JSONDecodeError:
+                full_message = Message(
+                    conversation_id=room_id,
+                    sender_id=user_id,
+                    message_type=msg_dict.get("message_type", "text"),
+                    content=msg_dict.get("content", "")
+                )
+            except Exception:
                 continue
                 
-            success = await create_message_db(db, room_id, user_id, msg_dict)
+            success = await create_message_db(db, room_id, user_id, full_message)
             
             if success:
                 # Send confirmation to sender
@@ -66,4 +88,4 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                     await manager.send_personal_message({"event": "new_message", "room_id": room_id}, recipient_id)
                 
     except WebSocketDisconnect:
-        manager.disconnect(user_id)
+        manager.disconnect(websocket, user_id)

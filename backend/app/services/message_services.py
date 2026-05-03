@@ -1,7 +1,8 @@
 import datetime as dt
 from bson import ObjectId
+from app.models.message import Message
 
-async def create_message_db(db, conversation_id: str, sender_id: str, message_data: dict) -> bool:
+async def create_message_db(db, conversation_id: str, sender_id: str, message_data: Message) -> bool:
     """
     Validates room and inserts a new message.
     Returns True on success, False if validation fails.
@@ -11,24 +12,13 @@ async def create_message_db(db, conversation_id: str, sender_id: str, message_da
     if not search_result:
         return False
         
-    message_data["conversation_id"] = str(chat_id)
-    message_data["sender_id"] = sender_id
-    # Default values injected here since we use dict directly or after Pydantic dump
-    message_data.setdefault("status", "sent")
-    message_data.setdefault("is_pinned", False)
-    message_data.setdefault("is_forwarded", False)
-    message_data.setdefault("is_edited", False)
-    message_data.setdefault("is_deleted", False)
-    message_data.setdefault("created_at", dt.datetime.now(dt.timezone.utc))
-    message_data.setdefault("updated_at", dt.datetime.now(dt.timezone.utc))
-    
-    insert_result = await db.messages.insert_one(message_data)
+    insert_result = await db.messages.insert_one(message_data.model_dump())
     if insert_result.inserted_id:
         await db.conversations.update_one(
             {"_id": chat_id},
             {"$set": {
-                "last_message": message_data.get("content", ""),
-                "last_message_at": message_data.get("created_at")
+                "last_message": message_data.content,
+                "last_message_at": message_data.created_at
             }}
         )
         return True

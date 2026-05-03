@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  
+
   const urlParams = new URLSearchParams(window.location.search);
   const roomId = urlParams.get('room_id');
   const contactName = urlParams.get('name');
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     myUserId = payload.sub || payload.id || payload.user_id || payload.owner_id || null;
-  } catch(e) {
+  } catch (e) {
     console.warn("Could not parse JWT token for user ID");
   }
 
@@ -103,18 +103,18 @@ document.addEventListener('DOMContentLoaded', () => {
     newMessages.forEach((msg, index) => {
       const isDeleted = msg.is_deleted === true;
       const senderId = msg.sender_id || msg.user_id;
-      
+
       let isMine = false;
       if (msg.is_mine !== undefined) {
-          isMine = msg.is_mine;
+        isMine = msg.is_mine;
       } else if (myUserId && senderId) {
-          isMine = String(senderId) === String(myUserId);
+        isMine = String(senderId) === String(myUserId);
       }
 
       const bubble = document.createElement('div');
       bubble.className = `bubble ${isMine ? 'msg-right' : 'msg-left'}`;
       bubble.dataset.id = msg._id || msg.id;
-      
+
       // Small animation stagger for smooth entry
       bubble.style.animationDelay = `${Math.min(index * 0.05, 0.3)}s`;
 
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
       bubble.oncontextmenu = (e) => {
         e.preventDefault();
         selectedMsgId = msg._id || msg.id;
-        
+
         if (isMine) {
           document.getElementById('ctxEdit').style.display = 'flex';
           document.getElementById('ctxDelete').style.display = 'flex';
@@ -133,17 +133,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Display to calculate space
         msgContextMenu.style.display = 'flex';
-        msgContextMenu.style.visibility = 'hidden'; 
-        
+        msgContextMenu.style.visibility = 'hidden';
+
         const menuWidth = 180;
-        const menuHeight = isMine ? 210 : 130; 
-        
+        const menuHeight = isMine ? 210 : 130;
+
         let x = e.pageX;
         let y = e.pageY;
-        
+
         if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
         if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
-        
+
         msgContextMenu.style.visibility = 'visible';
         msgContextMenu.style.left = `${x}px`;
         msgContextMenu.style.top = `${y}px`;
@@ -155,19 +155,19 @@ document.addEventListener('DOMContentLoaded', () => {
         bubble.innerHTML = `<span>This message was deleted</span>`;
       } else {
         const content = msg.content || '';
-        
+
         if (content.startsWith('http://') || content.startsWith('https://')) {
           try {
             const urlObj = new URL(content);
             const pathname = urlObj.pathname.toLowerCase();
-            
+
             if (pathname.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
               const img = document.createElement('img');
               img.src = content;
               img.alt = "Image";
               img.onload = scrollToBottom;
               bubble.appendChild(img);
-            } 
+            }
             else if (pathname.match(/\.(mp4|webm|mov)$/i)) {
               const video = document.createElement('video');
               video.src = content;
@@ -221,17 +221,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isNaN(date)) {
           const timeSpan = document.createElement('div');
           timeSpan.className = 'bubble-time';
-          
+
           let statusHtml = '';
           if (isMine && !isDeleted) {
-             const status = msg.status || 'sent';
-             if (status === 'seen') {
-                 statusHtml = '<span class="msg-status seen-status" style="margin-left:5px; color:#4facfe;">✓✓</span>';
-             } else {
-                 statusHtml = '<span class="msg-status" style="margin-left:5px; opacity:0.7;">✓</span>';
-             }
+            const status = msg.status || 'sent';
+            if (status === 'seen') {
+              statusHtml = '<span class="msg-status seen-status" style="margin-left:5px; color:#4facfe;">✓✓</span>';
+            } else if (status === 'delivered') {
+              statusHtml = '<span class="msg-status delivered-status" style="margin-left:5px; opacity:0.7;">✓✓</span>';
+            } else {
+              statusHtml = '<span class="msg-status" style="margin-left:5px; opacity:0.7;">✓</span>';
+            }
           }
-          
+
           timeSpan.innerHTML = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + statusHtml;
           bubble.appendChild(timeSpan);
         }
@@ -247,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper 3: Determine Message Type
   function getMessageType(content) {
     const text = content.toLowerCase();
-    
+
     // 1. Location check
     if (text.includes('google.com/maps') || text.match(/lat.*lng/i) || text.match(/latitude.*longitude/i)) {
       return 'location';
@@ -258,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const urlObj = new URL(content);
         const pathname = urlObj.pathname.toLowerCase();
-        
+
         const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
         const videoExts = ['.mp4', '.mov', '.webm', '.avi'];
         const audioExts = ['.mp3', '.wav', '.ogg', '.m4a'];
@@ -268,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (videoExts.some(ext => pathname.endsWith(ext))) return 'video';
         if (audioExts.some(ext => pathname.endsWith(ext))) return 'audio';
         if (docExts.some(ext => pathname.endsWith(ext))) return 'doc';
-        
+
       } catch (e) {
         // Ignore URL parsing errors
       }
@@ -281,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Sending Logic
   async function sendMessage(content) {
     if (!content.trim()) return;
-    
+
     const originalText = msgInput.value;
     msgInput.value = '';
     sendBtn.disabled = true;
@@ -350,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       attachMenu.classList.remove('active');
       const type = item.getAttribute('data-type');
-      
+
       if (type === 'photo') {
         mediaInput.removeAttribute('capture');
         mediaInput.accept = 'image/*,video/*';
@@ -414,22 +416,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 5. Start App & WebSockets
   fetchHistory();
-  
+
   function connectWebSocket() {
     const token = localStorage.getItem('token');
     if (!token) return;
-    
+
     window.ws = new WebSocket(`${WS_URL}/ws/chat/${roomId}?token=${token}`);
-    
+
     window.ws.onopen = () => {
       console.log('WebSocket Connected to room', roomId);
     };
-    
+
     window.ws.onmessage = (event) => {
       console.log('WebSocket Msg:', event.data);
       try {
         const payload = JSON.parse(event.data);
-        if (payload.action === 'MESSAGE_EDITED') {
+        if (payload.event === 'MESSAGE_EDITED') {
           const bubble = document.querySelector(`.bubble[data-id="${payload.message_id}"]`);
           if (bubble && !bubble.classList.contains('msg-deleted')) {
             const spans = bubble.querySelectorAll('span');
@@ -449,52 +451,65 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           return; // Prevent full re-fetch for just an edit
         }
-        
-        if (payload.action === 'MESSAGE_DELETED') {
+
+        if (payload.event === 'MESSAGE_DELETED') {
           const bubble = document.querySelector(`.bubble[data-id="${payload.message_id}"]`);
           if (bubble) {
             bubble.remove();
           }
           return; // Prevent full re-fetch for just a delete
         }
-        
-        if (payload.action === 'MESSAGE_SEEN') {
+
+        if (payload.event === 'STATUS_UPDATE') {
           if (payload.message_ids && Array.isArray(payload.message_ids)) {
-             payload.message_ids.forEach(id => {
-                const bubble = document.querySelector(`.bubble[data-id="${id}"]`);
-                if (bubble) {
-                   const statusSpan = bubble.querySelector('.msg-status');
-                   if (statusSpan) {
-                      statusSpan.textContent = '✓✓';
-                      statusSpan.style.color = '#4facfe'; // Blue ticks
-                      statusSpan.classList.add('seen-status');
-                      statusSpan.style.opacity = '1';
-                   }
+            payload.message_ids.forEach(id => {
+              const bubble = document.querySelector(`.bubble[data-id="${id}"]`);
+              if (bubble) {
+                const statusSpan = bubble.querySelector('.msg-status');
+                if (statusSpan) {
+                  if (payload.new_status === 'seen') {
+                    statusSpan.textContent = '✓✓';
+                    statusSpan.style.color = '#4facfe'; // Blue ticks
+                    statusSpan.classList.add('seen-status');
+                    statusSpan.classList.remove('delivered-status');
+                    statusSpan.style.opacity = '1';
+                  } else if (payload.new_status === 'delivered' && !statusSpan.classList.contains('seen-status')) {
+                    statusSpan.textContent = '✓✓';
+                    statusSpan.style.color = 'inherit';
+                    statusSpan.classList.add('delivered-status');
+                    statusSpan.style.opacity = '0.7';
+                  }
                 }
-             });
+              }
+            });
           }
-          return; // Prevent full re-fetch for status updates
+          return;
         }
-      } catch(e) {
+        if (payload.event === 'new_message' || payload.event === 'new_message_sent') {
+            if (payload.room_id && payload.room_id !== roomId) {
+                authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
+            } else {
+                fetchHistory();
+            }
+        }
+
+      } catch (e) {
         console.error("WS Parse Error:", e);
       }
-      
-      // Update UI instantly for new messages
-      fetchHistory();
     };
-    
+
     window.ws.onclose = () => {
       console.log('WebSocket Disconnected. Reconnecting in 3s...');
       setTimeout(connectWebSocket, 3000);
     };
   }
-  
+
   connectWebSocket();
 
   // 6. Context Menu Logic
   let selectedMsgId = null;
   const msgContextMenu = document.getElementById('msgContextMenu');
-  
+
   document.addEventListener('click', (e) => {
     if (msgContextMenu && !msgContextMenu.contains(e.target)) {
       msgContextMenu.classList.remove('active');

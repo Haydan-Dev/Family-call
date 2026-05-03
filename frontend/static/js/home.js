@@ -110,15 +110,18 @@ document.addEventListener('DOMContentLoaded', () => {
         badges += `<svg class="badge-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>`;
       }
 
+      let unreadBadge = chat.unread_count > 0 ? `<div class="unread-badge" style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold; margin-left: auto;">${chat.unread_count}</div>` : '';
       const card = document.createElement('div');
       card.className = 'card-item';
+      card.dataset.roomId = roomId;
       card.style.animationDelay = `${index * 0.05}s`;
       card.innerHTML = `
         <div class="avatar">${initial}</div>
-        <div class="info">
+        <div class="info" style="flex:1;">
           <div class="name-text">${name} ${badges}</div>
           <div class="sub-text">${chat.last_message || 'Tap to chat'}</div>
         </div>
+        ${unreadBadge}
       `;
       card.addEventListener('click', () => {
         window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(name)}`;
@@ -304,5 +307,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize App
   fetchChats();
+  
+  // Mark all incoming messages as delivered globally on app load
+  authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' })
+    .catch(err => console.error('Error marking messages as delivered:', err));
+    
+  // Global listener for socket events to update unread badge without refresh
+  function connectGlobalWebSocket() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    window.ws = new WebSocket(`${WS_URL}/ws/global?token=${token}`);
+    
+    window.ws.onopen = () => {
+      console.log('Global WebSocket Connected');
+    };
+    
+    window.ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.event === 'STATUS_UPDATE' && payload.new_status === 'seen' && payload.room_id) {
+           const card = document.querySelector(`.card-item[data-room-id="${payload.room_id}"]`);
+           if (card) {
+              const badge = card.querySelector('.unread-badge');
+              if (badge) badge.remove();
+           }
+        }
+        
+        if (payload.event === 'new_message') {
+           // Instantly acknowledge delivery and update UI
+           authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
+           fetchChats();
+        }
+      } catch(e) {}
+    };
+    
+    window.ws.onclose = () => {
+      console.log('Global WS Disconnected. Reconnecting...');
+      setTimeout(connectGlobalWebSocket, 3000);
+    };
+  }
+  
+  connectGlobalWebSocket();
 
 });

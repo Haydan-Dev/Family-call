@@ -59,3 +59,23 @@ async def delete_conversations(room_id: str, user_id: str = Depends(get_current_
         return {"status": 200, "Message": "Conversation Deleted Successfully"}
     else:
         raise HTTPException(status_code=404, detail="Conversation Not Found")
+
+@router.get("/unread_counts")
+async def get_unread_counts(current_user_id: str = Depends(get_current_user_token)):
+    pipeline = [
+        {
+            "$match": {
+                "sender_id": {"$ne": current_user_id},
+                "status": {"$ne": "seen"}
+            }
+        },
+        {
+            "$group": {
+                "_id": "$conversation_id",
+                "unread_count": {"$sum": 1}
+            }
+        }
+    ]
+    cursor = db.messages.aggregate(pipeline)
+    unread_counts = await cursor.to_list(length=None)
+    return {"data": unread_counts, "Message": "Unread counts fetched successfully"}

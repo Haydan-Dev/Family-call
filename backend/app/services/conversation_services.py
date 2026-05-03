@@ -29,10 +29,36 @@ async def create_conversation_db(db, user_id: str, contact_id: str) -> dict | No
     return {"room_id": str(new_room.inserted_id), "is_new": True}
 
 async def search_conversation_db(db, user_id: str) -> list:
-    find_conversations = db.conversations.find({"participant_ids": user_id})
+    # 1. Fetch all conversations first
+    conversations_cursor = db.conversations.find({"participant_ids": user_id})
+    conversations = await conversations_cursor.to_list(length=None)
+    
+    if not conversations:
+        return []
+
+    room_ids_str = [str(conv["_id"]) for conv in conversations]
+
+    # 2. Single Aggregation Pipeline for ALL unread counts
+    pipeline = [
+        {"$match": {
+            "conversation_id": {"$in": room_ids_str},
+            "sender_id": {"$ne": user_id},
+            "status": {"$ne": "seen"}
+        }},
+        {"$group": {
+            "_id": "$conversation_id",
+            "unread_count": {"$sum": 1}
+        }}
+    ]
+    unread_counts_cursor = db.messages.aggregate(pipeline)
+    unread_counts_list = await unread_counts_cursor.to_list(length=None)
+    
+    # Map conversation_id -> unread_count
+    unread_map = {item["_id"]: item["unread_count"] for item in unread_counts_list}
+
     formatted_list = []
     
-    async for conversation in find_conversations:
+    for conversation in conversations:
         participant_ids = conversation.get("participant_ids", [])
         other_user_id = next((pid for pid in participant_ids if pid != user_id), None)
         
@@ -62,13 +88,18 @@ async def search_conversation_db(db, user_id: str) -> list:
                 
         is_pinned = user_id in conversation.get("pinned_by", [])
         is_archived = user_id in conversation.get("archived_by", [])
+        
+        # Get count from map in O(1) time
+        room_id_str = str(conversation["_id"])
+        unread_count = unread_map.get(room_id_str, 0)
                 
         formatted_list.append({
-            "room_id": str(conversation["_id"]),
+            "room_id": room_id_str,
             "contact_name": contact_name,
             "last_message": str(conversation.get("last_message", "No messages yet")),
             "is_pinned": is_pinned,
-            "is_archived": is_archived
+            "is_archived": is_archived,
+            "unread_count": unread_count
         })
         
     return formatted_list
