@@ -25,7 +25,7 @@ app = FastAPI(lifespan=lifespan)
 core(app)
 
 # STATIC MOUNT: 'app/static' folder ko public access de raha hai taki frontend files dekh sake
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory="../frontend"), name="static")
 
 @app.get("/")
 def Home():

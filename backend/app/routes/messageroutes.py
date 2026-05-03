@@ -30,6 +30,19 @@ async def send_messages(conversation_id: str, message_data: First_Message, user_
 # GET: Fetch message history for a specific room
 @router.get("/history/{conversation_id}")
 async def messages_history(conversation_id: str, user_id: str = Depends(get_current_user_token)):
+    from app.services.message_services import mark_messages_seen_db
+    from app.websockets.connection_manager import manager
+    
+    participants, updated_ids = await mark_messages_seen_db(db, conversation_id, user_id)
+    if updated_ids:
+        payload = {
+            "action": "MESSAGE_SEEN",
+            "message_ids": updated_ids,
+            "user_id": user_id
+        }
+        for pid in participants:
+            await manager.send_personal_message(payload, pid)
+
     chat_history = await get_history_db(db, conversation_id, user_id)
     if chat_history is not None:
         return {"status": 200, "Message": "Chat History Found", "Chat": chat_history}
@@ -39,17 +52,34 @@ async def messages_history(conversation_id: str, user_id: str = Depends(get_curr
 # DELETE: Remove a specific message document
 @router.delete("/delete/{message_id}")  
 async def delete_messages(message_id: str, user_id: str = Depends(get_current_user_token)):
-    success = await delete_message_db(db, message_id, user_id)
-    if success:
+    participant_ids = await delete_message_db(db, message_id, user_id)
+    if participant_ids is not None:
+        payload = {
+            "action": "MESSAGE_DELETED",
+            "message_id": message_id
+        }
+        for pid in participant_ids:
+            await manager.send_personal_message(payload, pid)
+            
         return {"status": 200, "Message": "Message Deleted Successfully"}
     else:
         raise HTTPException(status_code=404, detail="Message Not Found or Unauthorized")
 
+from app.websockets.connection_manager import manager
+
 # PATCH: Edit message content and set is_edited flag
 @router.patch("/edit/{message_id}")
 async def edit_messages(edit_message: Edit_Message, message_id: str, user_id: str = Depends(get_current_user_token)):
-    success = await edit_message_db(db, message_id, user_id, edit_message.content)
-    if success:
+    participant_ids = await edit_message_db(db, message_id, user_id, edit_message.content)
+    if participant_ids is not None:
+        payload = {
+            "action": "MESSAGE_EDITED",
+            "message_id": message_id,
+            "new_content": edit_message.content
+        }
+        for pid in participant_ids:
+            await manager.send_personal_message(payload, pid)
+            
         return {"status": 200, "Message": "Message Edited Successfully"}
     else:
         raise HTTPException(status_code=404, detail="Message Not Found or Unauthorized")

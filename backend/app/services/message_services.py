@@ -49,37 +49,53 @@ async def get_history_db(db, conversation_id: str, sender_id: str) -> list | Non
         msg["_id"] = str(msg["_id"])
     return chat_history
 
-async def delete_message_db(db, message_id: str, sender_id: str) -> bool:
+async def delete_message_db(db, message_id: str, sender_id: str) -> list | None:
     """
     Marks a message as deleted.
-    Returns True if modified, False otherwise.
+    Returns participant_ids if modified, None otherwise.
     """
     msg_id = ObjectId(message_id)
+    message = await db.messages.find_one({"sender_id": sender_id, "_id": msg_id})
+    if not message:
+        return None
+        
     update_result = await db.messages.update_one(
-        {"sender_id": sender_id, "_id": msg_id},
+        {"_id": msg_id},
         {"$set": {
             "updated_at": dt.datetime.now(dt.timezone.utc),
             "is_deleted": True,
             "content": "This Message Was Deleted"
         }}
     )
-    return update_result.modified_count == 1
+    
+    room = await db.conversations.find_one({"_id": ObjectId(message["conversation_id"])})
+    if room:
+        return room.get("participant_ids", [])
+    return []
 
-async def edit_message_db(db, message_id: str, sender_id: str, new_content: str) -> bool:
+async def edit_message_db(db, message_id: str, sender_id: str, new_content: str) -> list | None:
     """
     Edits a message's content.
-    Returns True if modified, False otherwise.
+    Returns participant_ids of the conversation if successful, None otherwise.
     """
     msg_id = ObjectId(message_id)
-    update_result = await db.messages.update_one(
-        {"sender_id": sender_id, "_id": msg_id},
+    message = await db.messages.find_one({"sender_id": sender_id, "_id": msg_id})
+    if not message:
+        return None
+        
+    await db.messages.update_one(
+        {"_id": msg_id},
         {"$set": {
             "content": new_content,
             "is_edited": True,
             "updated_at": dt.datetime.now(dt.timezone.utc)
         }}
     )
-    return update_result.modified_count == 1
+    
+    room = await db.conversations.find_one({"_id": ObjectId(message["conversation_id"])})
+    if room:
+        return room.get("participant_ids", [])
+    return []
 
 async def toggle_pin_db(db, message_id: str) -> dict | None:
     """
@@ -125,6 +141,7 @@ async def forward_msg_db(db, message_id: str, target_room_id: str, user_id: str)
     new_msg_data["is_pinned"] = False
     new_msg_data["created_at"] = dt.datetime.now(dt.timezone.utc)
     new_msg_data["updated_at"] = dt.datetime.now(dt.timezone.utc)
+    new_msg_data["updated_at"] = dt.datetime.now(dt.timezone.utc)
     
     insert_result = await db.messages.insert_one(new_msg_data)
     if insert_result.inserted_id:
@@ -137,3 +154,33 @@ async def forward_msg_db(db, message_id: str, target_room_id: str, user_id: str)
         )
         return True
     return False
+
+async def mark_messages_seen_db(db, conversation_id: str, user_id: str) -> tuple[list, list]:
+    """
+    Marks all unread messages in a conversation sent by others as 'seen'.
+    Returns (participant_ids, list_of_updated_message_ids_as_strings)
+    """
+    chat_id = ObjectId(conversation_id)
+    room = await db.conversations.find_one({"_id": chat_id})
+    if not room or user_id not in room.get("participant_ids", []):
+        return [], []
+
+    cursor = db.messages.find({
+        "conversation_id": str(chat_id),
+        "sender_id": {"$ne": user_id},
+        "status": {"$ne": "seen"}
+    })
+    messages = await cursor.to_list(length=100)
+    
+    if not messages:
+        return room.get("participant_ids", []), []
+        
+    msg_ids = [msg["_id"] for msg in messages]
+    str_msg_ids = [str(m_id) for m_id in msg_ids]
+    
+    await db.messages.update_many(
+        {"_id": {"$in": msg_ids}},
+        {"$set": {"status": "seen", "updated_at": dt.datetime.now(dt.timezone.utc)}}
+    )
+    
+    return room.get("participant_ids", []), str_msg_ids

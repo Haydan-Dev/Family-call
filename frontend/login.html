@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Hamnasheen - Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+
+<div class="splash">
+
+  <div class="center">
+    <div class="logo-wrap">
+      <div class="logo">
+        <svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M36 6 L6 28 H14 V64 H58 V28 H66 Z" stroke="#FFC700" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+        <circle cx="27" cy="34" r="3.5" fill="#FFC700"/>
+        <path d="M27 38 Q27 46 27 52" stroke="#FFC700" stroke-width="2" stroke-linecap="round" fill="none"/>
+        <path d="M27 42 Q23 45 21 48" stroke="#FFC700" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <path d="M27 42 Q31 44 34 46" stroke="#FFC700" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <path d="M27 52 Q25 57 24 62" stroke="#FFC700" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <path d="M27 52 Q29 57 30 62" stroke="#FFC700" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <circle cx="40" cy="38.5" r="2.6" fill="#FFC700"/>
+        <path d="M40 41.5 Q40 47 40 53" stroke="#FFC700" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+        <path d="M40 44.5 Q37 45.5 34 46" stroke="#FFC700" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+        <path d="M40 44.5 Q44 42 46 40" stroke="#FFC700" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+        <path d="M40 53 Q38.5 57 38 62" stroke="#FFC700" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+        <path d="M40 53 Q41.5 57 42 62" stroke="#FFC700" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+        <circle cx="34" cy="46" r="1.8" fill="#FFC700" opacity="0.9"/>
+      </svg>
+      </div>
+    </div>
+    <h1 class="name">Ham<em>nasheen</em></h1>
+    <p class="tagline">Login</p>
+    <div class="line"></div>
+  </div>
+
+  <form class="form-container" id="loginForm">
+    <input type="email" id="email" class="input-field" placeholder="Email" required />
+    <input type="password" id="password" class="input-field" placeholder="Password" required />
+    <button type="submit" class="btn-primary">Login</button>
+    <a href="signup.html" class="btn-secondary">Don't have an account? Sign Up</a>
+  </form>
+
+</div>
+
+<script src="static/js/config.js"></script>
+<script src="static/js/auth.js" defer></script>
+
+</body>
+</html>
