@@ -35,8 +35,21 @@ async def search_conversation_db(db, user_id: str, fetch_archived: bool = False)
         query["archived_by"] = user_id
     else:
         query["archived_by"] = {"$ne": user_id}
-        
-    conversations_cursor = db.conversations.find(query)
+    pipeline = [
+        {"$match": query},
+        {"$addFields": {
+            "is_pinned_num": {
+                "$cond": [
+                    {"$in": [user_id, {"$ifNull": ["$pinned_by", []]}]}, 
+                    1, 
+                    0
+                ]
+            }
+        }},
+        {"$sort": {"is_pinned_num": -1, "updated_at": -1}}
+    ]
+    
+    conversations_cursor = db.conversations.aggregate(pipeline)
     conversations = await conversations_cursor.to_list(length=None)
     
     total_archived_unread = 0

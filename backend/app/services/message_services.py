@@ -34,7 +34,13 @@ async def get_history_db(db, conversation_id: str, sender_id: str) -> list | Non
     if not search_result:
         return None
         
-    chat_history = await db.messages.find({"conversation_id": str(chat_id), "is_deleted": False}).sort("created_at", 1).to_list(length=75)
+    chat_history = await db.messages.find({
+        "conversation_id": {"$in": [str(conversation_id), ObjectId(conversation_id)]}, 
+        "is_deleted": False
+    }).sort("created_at", -1).to_list(length=75)
+    
+    chat_history.reverse()
+    
     for msg in chat_history:
         msg["_id"] = str(msg["_id"])
     return chat_history

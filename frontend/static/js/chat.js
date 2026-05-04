@@ -77,8 +77,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderMessages(messages) {
-    // If no messages at all
-    if (messages.length === 0 && currentMsgCount === 0) {
+    // 1. Pinned Banner Logic
+    const pinnedBanner = document.getElementById('pinnedMessageBanner');
+    const pinnedText = document.getElementById('pinnedBannerText');
+    const pinnedMessage = messages.find(m => m.is_pinned === true);
+    
+    if (pinnedBanner && pinnedText) {
+      if (pinnedMessage) {
+        pinnedText.textContent = pinnedMessage.content || "Pinned message";
+        pinnedBanner.classList.remove('hidden');
+      } else {
+        pinnedBanner.classList.add('hidden');
+      }
+    }
+
+    if (messages.length === 0 && chatBody.querySelectorAll('.bubble').length === 0) {
       if (loadingState) loadingState.style.display = 'none';
       if (!document.querySelector('.empty-chat')) {
         const emptyDiv = document.createElement('div');
@@ -89,18 +102,17 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Optimization: Only process new messages
-    if (messages.length === currentMsgCount) return;
-
-    // Remove empty state message if it exists
     const emptyState = document.querySelector('.empty-chat');
     if (emptyState) emptyState.remove();
     if (loadingState) loadingState.style.display = 'none';
 
-    // Append only NEW messages to avoid full re-render
-    const newMessages = messages.slice(currentMsgCount);
+    let addedNew = false;
 
-    newMessages.forEach((msg, index) => {
+    messages.forEach((msg, index) => {
+      const msgId = msg._id || msg.id;
+      if (document.querySelector(`.bubble[data-id="${msgId}"]`)) return;
+
+      addedNew = true;
       const isDeleted = msg.is_deleted === true;
       const senderId = msg.sender_id || msg.user_id;
 
@@ -118,6 +130,20 @@ document.addEventListener('DOMContentLoaded', () => {
       // Small animation stagger for smooth entry
       bubble.style.animationDelay = `${Math.min(index * 0.05, 0.3)}s`;
 
+      if (msg.is_pinned) {
+        const pinIndicator = document.createElement('div');
+        pinIndicator.textContent = '📌';
+        pinIndicator.style.fontSize = '12px';
+        pinIndicator.style.position = 'absolute';
+        pinIndicator.style.top = '-8px';
+        pinIndicator.style.right = '-8px';
+        bubble.appendChild(pinIndicator);
+        bubble.style.position = 'relative';
+        bubble.dataset.isPinned = "true";
+      } else {
+        bubble.dataset.isPinned = "false";
+      }
+
       // Context Menu Event
       bubble.oncontextmenu = (e) => {
         e.preventDefault();
@@ -129,6 +155,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           document.getElementById('ctxEdit').style.display = 'none';
           document.getElementById('ctxDelete').style.display = 'none';
+        }
+
+        // Dynamically update Pin/Unpin
+        const pinItem = msgContextMenu.querySelector('.ctx-item[data-action="pin"], .ctx-item[data-action="unpin"]');
+        if (pinItem) {
+          const isPinned = bubble.dataset.isPinned === "true";
+          pinItem.setAttribute('data-action', isPinned ? 'unpin' : 'pin');
+          pinItem.innerHTML = isPinned ? 
+            `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 11.24V6a3 3 0 0 0-6 0v5.24a2 2 0 0 1-1.11 1.31l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg> Unpin` : 
+            `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 11.24V6a3 3 0 0 0-6 0v5.24a2 2 0 0 1-1.11 1.31l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg> Pin`;
         }
 
         // Display to calculate space
@@ -242,8 +278,9 @@ document.addEventListener('DOMContentLoaded', () => {
       chatBody.appendChild(bubble);
     });
 
-    scrollToBottom();
-    currentMsgCount = messages.length;
+    if (addedNew) {
+      scrollToBottom();
+    }
   }
 
   // Helper 3: Determine Message Type
@@ -486,11 +523,11 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         if (payload.event === 'new_message' || payload.event === 'new_message_sent') {
-            if (payload.room_id && payload.room_id !== roomId) {
-                authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
-            } else {
-                fetchHistory();
-            }
+          if (payload.room_id && payload.room_id !== roomId) {
+            authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
+          } else {
+            fetchHistory();
+          }
         }
 
       } catch (e) {
@@ -541,6 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             break;
           case 'pin':
+          case 'unpin':
             await authFetch(`${BASE_URL}/messages/pin/${selectedMsgId}`, { method: 'PATCH' });
             break;
           case 'forward':
