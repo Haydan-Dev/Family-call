@@ -28,13 +28,37 @@ async def create_conversation_db(db, user_id: str, contact_id: str) -> dict | No
     new_room = await db.conversations.insert_one({"participant_ids": [caller_id, receiver_id]}) 
     return {"room_id": str(new_room.inserted_id), "is_new": True}
 
-async def search_conversation_db(db, user_id: str) -> list:
-    # 1. Fetch all conversations first
-    conversations_cursor = db.conversations.find({"participant_ids": user_id})
+async def search_conversation_db(db, user_id: str, fetch_archived: bool = False) -> tuple[list, int]:
+    # 1. Fetch conversations based on archive status
+    query = {"participant_ids": user_id}
+    if fetch_archived:
+        query["archived_by"] = user_id
+    else:
+        query["archived_by"] = {"$ne": user_id}
+        
+    conversations_cursor = db.conversations.find(query)
     conversations = await conversations_cursor.to_list(length=None)
     
+    total_archived_unread = 0
+    if not fetch_archived:
+        archived_query = {"participant_ids": user_id, "archived_by": user_id}
+        archived_rooms = await db.conversations.find(archived_query).to_list(length=None)
+        if archived_rooms:
+            archived_room_ids = [str(r["_id"]) for r in archived_rooms]
+            archived_pipeline = [
+                {"$match": {
+                    "conversation_id": {"$in": archived_room_ids},
+                    "sender_id": {"$ne": user_id},
+                    "status": {"$ne": "seen"}
+                }},
+                {"$count": "total"}
+            ]
+            archived_count_res = await db.messages.aggregate(archived_pipeline).to_list(length=None)
+            if archived_count_res:
+                total_archived_unread = archived_count_res[0]["total"]
+
     if not conversations:
-        return []
+        return [], total_archived_unread
 
     room_ids_str = [str(conv["_id"]) for conv in conversations]
 
@@ -102,7 +126,7 @@ async def search_conversation_db(db, user_id: str) -> list:
             "unread_count": unread_count
         })
         
-    return formatted_list
+    return formatted_list, total_archived_unread
 
 async def toggle_pin_room_db(db, user_id: str, room_id: str) -> dict | None:
     try:

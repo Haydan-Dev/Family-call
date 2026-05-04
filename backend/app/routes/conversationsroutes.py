@@ -33,8 +33,13 @@ async def create_conversation(contact_id: str, user_id: str = Depends(get_curren
 
 @router.get("/display_conversations")
 async def search_conversation(user_id: str = Depends(get_current_user_token)):
-    formatted_list = await search_conversation_db(db, user_id)
-    return {"data": formatted_list, "Message": "Conversations found"}
+    formatted_list, total_archived = await search_conversation_db(db, user_id, fetch_archived=False)
+    return {"data": formatted_list, "total_archived_unread": total_archived, "Message": "Conversations found"}
+
+@router.get("/archived_conversations")
+async def get_archived_conversations(user_id: str = Depends(get_current_user_token)):
+    formatted_list, _ = await search_conversation_db(db, user_id, fetch_archived=True)
+    return {"data": formatted_list, "Message": "Archived Conversations found"}
 
 @router.patch("/pin/{room_id}")
 async def pin_room(room_id: str, user_id: str = Depends(get_current_user_token)):

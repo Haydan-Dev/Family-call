@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  
+
 
 
   // --- 2. Element References ---
@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatsEmpty = document.getElementById('chatsEmpty');
   const chatsList = document.getElementById('chatsList');
   const logoutBtn = document.getElementById('logoutBtn');
-  
+
   // Layer 2
   const contactsSlider = document.getElementById('contactsSlider');
   const openSliderBtn = document.getElementById('openSliderBtn');
@@ -24,9 +24,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const contactsEmpty = document.getElementById('contactsEmpty');
   const contactsList = document.getElementById('contactsList');
 
+  // Layer 4
+  const archivedSlider = document.getElementById('archivedSlider');
+  const closeArchivedSliderBtn = document.getElementById('closeArchivedSliderBtn');
+  const archivedLoading = document.getElementById('archivedLoading');
+  const archivedEmpty = document.getElementById('archivedEmpty');
+  const archivedList = document.getElementById('archivedList');
+
   // Context Menu Setup
   const roomContextMenu = document.getElementById('roomContextMenu');
   let selectedRoomId = null;
+  let unreadArchivedCount = 0; // Tracks aggregate unread count for archived chats
 
   document.addEventListener('click', (e) => {
     if (roomContextMenu && !roomContextMenu.contains(e.target)) {
@@ -42,16 +50,26 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!selectedRoomId) return;
 
       try {
-        if (action === 'pin') {
+        if (action === 'pin' || action === 'unpin') {
           await authFetch(`${BASE_URL}/conversations/pin/${selectedRoomId}`, { method: 'PATCH' });
-        } else if (action === 'archive') {
+        } else if (action === 'archive' || action === 'unarchive') {
+          // Optimistic UI Update: Instantly hide the card
+          const cards = document.querySelectorAll(`.card-item[data-room-id="${selectedRoomId}"]`);
+          cards.forEach(c => c.style.display = 'none');
+
+          // The backend /archive endpoint automatically toggles between archive and unarchive
           await authFetch(`${BASE_URL}/conversations/archive/${selectedRoomId}`, { method: 'PATCH' });
         } else if (action === 'delete') {
-          if(confirm('Delete this chat permanently?')) {
+          if (confirm('Delete this chat permanently?')) {
+            const cards = document.querySelectorAll(`.card-item[data-room-id="${selectedRoomId}"]`);
+            cards.forEach(c => c.style.display = 'none');
             await authFetch(`${BASE_URL}/conversations/delete_conversations/${selectedRoomId}`, { method: 'DELETE' });
           }
         }
-        fetchChats(); // Refresh UI
+        fetchChats(true); // Silent refresh
+        if (archivedSlider && archivedSlider.classList.contains('active')) {
+            fetchArchivedChats(true);
+        }
       } catch (err) {
         console.error(err);
         alert('Action failed');
@@ -74,12 +92,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- LAYER 1: FETCH CHATS ---
-  async function fetchChats() {
-    showState(chatsLoading, [chatsEmpty, chatsList]);
+  async function fetchChats(silent = false) {
+    if (!silent) showState(chatsLoading, [chatsEmpty, chatsList]);
     try {
       const res = await authFetch(`${BASE_URL}/conversations/display_conversations`, { method: 'GET' });
       const data = await res.json();
-      
+
+      if (data.total_archived_unread !== undefined) {
+         unreadArchivedCount = data.total_archived_unread;
+      }
+
       let chats = Array.isArray(data) ? data : (data.data || []);
 
       if (chats.length === 0) {
@@ -95,13 +117,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function renderChats(chats) {
-    chatsList.innerHTML = '';
+  function renderChats(chats, isArchivedView = false) {
+    const listEl = isArchivedView ? archivedList : chatsList;
+    listEl.innerHTML = '';
+
+    if (!isArchivedView) {
+      const archivedBtn = document.createElement('div');
+      archivedBtn.className = 'card-item';
+      archivedBtn.style.background = 'rgba(255, 255, 255, 0.05)';
+      archivedBtn.innerHTML = `
+        <div class="avatar" style="background: transparent; color: #fff;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+        </div>
+        <div class="info" style="flex:1; display:flex; align-items:center;">
+          <div class="name-text">Archived</div>
+        </div>
+        ${unreadArchivedCount > 0 ? `<div class="unread-badge" style="background: #ff9800; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold; margin-left: auto;">${unreadArchivedCount}</div>` : ''}
+      `;
+      archivedBtn.addEventListener('click', () => {
+        archivedSlider.classList.add('active');
+        fetchArchivedChats();
+      });
+      listEl.appendChild(archivedBtn);
+    }
+
     chats.forEach((chat, index) => {
       const roomId = chat.room_id || 'Unknown';
-      const name = chat.contact_name || chat.name || roomId; 
+      const name = chat.contact_name || chat.name || roomId;
       const initial = name.charAt(0).toUpperCase();
-      
+
       let badges = '';
       if (chat.is_pinned) {
         badges += `<svg class="badge-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>`;
@@ -114,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       card.className = 'card-item';
       card.dataset.roomId = roomId;
+      card.dataset.isPinned = chat.is_pinned ? 'true' : 'false';
       card.style.animationDelay = `${index * 0.05}s`;
       card.innerHTML = `
         <div class="avatar">${initial}</div>
@@ -126,27 +171,59 @@ document.addEventListener('DOMContentLoaded', () => {
       card.addEventListener('click', () => {
         window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(name)}`;
       });
-      
+
       // Long press / right click logic
       card.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         selectedRoomId = roomId;
-        roomContextMenu.style.display = 'flex';
         
+        // Dynamically update Pin/Unpin action
+        const pinItem = roomContextMenu.querySelector('.ctx-item[data-action="pin"], .ctx-item[data-action="unpin"]');
+        const isPinned = card.dataset.isPinned === 'true';
+        if (pinItem) {
+          pinItem.setAttribute('data-action', isPinned ? 'unpin' : 'pin');
+          pinItem.querySelector('span').textContent = isPinned ? 'Unpin' : 'Pin';
+        }
+
+        // Dynamically update context menu action
+        const archiveItem = roomContextMenu.querySelector('.ctx-item[data-action="archive"], .ctx-item[data-action="unarchive"]');
+        if (archiveItem) {
+          archiveItem.setAttribute('data-action', isArchivedView ? 'unarchive' : 'archive');
+          archiveItem.querySelector('span').textContent = isArchivedView ? 'Unarchive' : 'Archive';
+        }
+
+        roomContextMenu.style.display = 'flex';
+
         // Prevent menu from going off-screen
         let posX = e.pageX;
         let posY = e.pageY;
         if (posX + 180 > window.innerWidth) posX = window.innerWidth - 190;
         if (posY + 160 > window.innerHeight) posY = window.innerHeight - 170;
-        
+
         roomContextMenu.style.left = `${posX}px`;
         roomContextMenu.style.top = `${posY}px`;
       });
-      
+
       let pressTimer;
       card.addEventListener('touchstart', (e) => {
         pressTimer = window.setTimeout(() => {
           selectedRoomId = roomId;
+
+          // Dynamically update Pin/Unpin action
+          const pinItem = roomContextMenu.querySelector('.ctx-item[data-action="pin"], .ctx-item[data-action="unpin"]');
+          const isPinned = card.dataset.isPinned === 'true';
+          if (pinItem) {
+            pinItem.setAttribute('data-action', isPinned ? 'unpin' : 'pin');
+            pinItem.querySelector('span').textContent = isPinned ? 'Unpin' : 'Pin';
+          }
+
+          // Dynamically update context menu action
+          const archiveItem = roomContextMenu.querySelector('.ctx-item[data-action="archive"], .ctx-item[data-action="unarchive"]');
+          if (archiveItem) {
+            archiveItem.setAttribute('data-action', isArchivedView ? 'unarchive' : 'archive');
+            archiveItem.querySelector('span').textContent = isArchivedView ? 'Unarchive' : 'Archive';
+          }
+
           roomContextMenu.style.display = 'flex';
           roomContextMenu.style.left = `${e.touches[0].pageX}px`;
           roomContextMenu.style.top = `${e.touches[0].pageY}px`;
@@ -159,7 +236,34 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(pressTimer);
       });
 
-      chatsList.appendChild(card);
+      listEl.appendChild(card);
+    });
+  }
+
+  async function fetchArchivedChats(silent = false) {
+    if (!silent) showState(archivedLoading, [archivedEmpty, archivedList]);
+    try {
+      const res = await authFetch(`${BASE_URL}/conversations/archived_conversations`, { method: 'GET' });
+      const data = await res.json();
+      let chats = Array.isArray(data) ? data : (data.data || []);
+
+      if (chats.length === 0) {
+        showState(archivedEmpty, [archivedLoading, archivedList]);
+      } else {
+        renderChats(chats, true);
+        showState(archivedList, [archivedLoading, archivedEmpty]);
+      }
+    } catch (error) {
+      console.error('Error fetching archived chats:', error);
+      showState(archivedEmpty, [archivedLoading, archivedList]);
+      if(archivedEmpty.querySelector('p')) archivedEmpty.querySelector('p').textContent = "Failed to load archived chats.";
+    }
+  }
+
+  if (closeArchivedSliderBtn) {
+    closeArchivedSliderBtn.addEventListener('click', () => {
+      archivedSlider.classList.remove('active');
+      fetchChats();
     });
   }
 
@@ -169,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await authFetch(`${BASE_URL}/contacts/`, { method: 'GET' });
       const data = await res.json();
-      
+
       let contacts = [];
       if (Array.isArray(data)) contacts = data;
       else if (data && Array.isArray(data.contacts)) contacts = data.contacts;
@@ -206,20 +310,20 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="sub-text">${email}</div>
         </div>
       `;
-      
+
       // Trigger Start Conversation
       card.addEventListener('click', async () => {
         if (!contactId) { alert("Contact ID missing."); return; }
-        
+
         try {
           // Visual feedback
           card.style.opacity = '0.5';
           const res = await authFetch(`${BASE_URL}/conversations/start_conversation/${contactId}`, {
-             method: 'POST' 
+            method: 'POST'
           });
           const data = await res.json();
           const roomId = data.room_id || data.new_room_id || data.id;
-          
+
           if (roomId) {
             window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(name)}`;
           } else {
@@ -232,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
           card.style.opacity = '1';
         }
       });
-      
+
       contactsList.appendChild(card);
     });
   }
@@ -270,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const email_val = document.getElementById('contactEmail').value;
     const submitBtn = addContactForm.querySelector('.btn-save');
     const originalText = submitBtn.textContent;
-    
+
     submitBtn.textContent = 'Saving...';
     submitBtn.disabled = true;
 
@@ -307,47 +411,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize App
   fetchChats();
-  
+
   // Mark all incoming messages as delivered globally on app load
   authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' })
     .catch(err => console.error('Error marking messages as delivered:', err));
-    
+
   // Global listener for socket events to update unread badge without refresh
   function connectGlobalWebSocket() {
     const token = localStorage.getItem('token');
     if (!token) return;
-    
+
     window.ws = new WebSocket(`${WS_URL}/ws/global?token=${token}`);
-    
+
     window.ws.onopen = () => {
       console.log('Global WebSocket Connected');
     };
-    
+
     window.ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
         if (payload.event === 'STATUS_UPDATE' && payload.new_status === 'seen' && payload.room_id) {
-           const card = document.querySelector(`.card-item[data-room-id="${payload.room_id}"]`);
-           if (card) {
-              const badge = card.querySelector('.unread-badge');
-              if (badge) badge.remove();
-           }
+          const card = document.querySelector(`.card-item[data-room-id="${payload.room_id}"]`);
+          if (card) {
+            const badge = card.querySelector('.unread-badge');
+            if (badge) badge.remove();
+          }
         }
-        
+
         if (payload.event === 'new_message') {
-           // Instantly acknowledge delivery and update UI
-           authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
-           fetchChats();
+          // Instantly acknowledge delivery and update UI
+          authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
+          
+          const archivedCard = document.querySelector(`#archivedList .card-item[data-room-id="${payload.room_id}"]`);
+          const activeCard = document.querySelector(`#chatsList .card-item[data-room-id="${payload.room_id}"]`);
+
+          if (archivedCard) {
+            // It's loaded in the slider, bump the badge via DOM
+            let badge = archivedCard.querySelector('.unread-badge');
+            if (!badge) {
+              badge = document.createElement('div');
+              badge.className = 'unread-badge';
+              badge.style.cssText = 'background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold; margin-left: auto;';
+              badge.textContent = '0';
+              archivedCard.appendChild(badge);
+            }
+            badge.textContent = parseInt(badge.textContent) + 1;
+            archivedList.prepend(archivedCard); // bump to top
+            
+            unreadArchivedCount++;
+            updateArchivedBadgeDOM();
+            return; // Zero API call execution for loaded archived chats!
+          } else if (!activeCard) {
+            // It's not loaded in archived, and not active. 
+            // We assume it's an unloaded archived chat (or new).
+            // Increment aggregate and purely update DOM.
+            unreadArchivedCount++;
+            updateArchivedBadgeDOM();
+          }
+
+          fetchChats(true); // Refresh main list for active chat updates
         }
-      } catch(e) {}
+      } catch (e) { }
     };
-    
+
+    function updateArchivedBadgeDOM() {
+      const archivedBtn = document.querySelector('#chatsList .card-item'); // It's always the first item if rendered
+      if (archivedBtn && archivedBtn.querySelector('.name-text') && archivedBtn.querySelector('.name-text').textContent.includes('Archived')) {
+          let badge = archivedBtn.querySelector('.unread-badge');
+          if (unreadArchivedCount > 0) {
+              if (!badge) {
+                  badge = document.createElement('div');
+                  badge.className = 'unread-badge';
+                  badge.style.cssText = 'background: #ff9800; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold; margin-left: auto;';
+                  archivedBtn.appendChild(badge);
+              }
+              badge.textContent = unreadArchivedCount;
+          } else if (badge) {
+              badge.remove();
+          }
+      }
+    }
+
     window.ws.onclose = () => {
       console.log('Global WS Disconnected. Reconnecting...');
       setTimeout(connectGlobalWebSocket, 3000);
     };
   }
-  
+
   connectGlobalWebSocket();
 
 });

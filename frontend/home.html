@@ -97,6 +97,36 @@
     </div>
   </div>
 
+  <!-- --- LAYER 4: ARCHIVED CHATS SLIDER --- -->
+  <div class="contacts-slider" id="archivedSlider">
+    <div class="slider-header">
+      <button class="close-slider-btn" id="closeArchivedSliderBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      <div class="slider-title">Archived Chats</div>
+    </div>
+    
+    <div class="slider-body">
+      <!-- Archived Loading -->
+      <div class="state-box hidden" id="archivedLoading">
+        <div class="spinner"></div>
+      </div>
+
+      <!-- Archived Empty -->
+      <div class="state-box hidden" id="archivedEmpty">
+        <p>No archived chats.</p>
+      </div>
+
+      <!-- Archived List -->
+      <div class="list-container hidden" id="archivedList">
+        <!-- Archived items injected here -->
+      </div>
+    </div>
+  </div>
+
 </div> <!-- end app-container -->
 
 <!-- --- LAYER 3: ADD CONTACT MODAL --- -->
