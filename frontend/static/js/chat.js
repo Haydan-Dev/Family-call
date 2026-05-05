@@ -33,6 +33,68 @@ document.addEventListener('DOMContentLoaded', () => {
     console.warn("Could not parse JWT token for user ID");
   }
 
+  // --- STRANGER DANGER BANNER LOGIC ---
+  const strangerBanner = document.getElementById('strangerBanner');
+  const isContact      = urlParams.get('is_contact') === 'true';
+  const otherEmail     = urlParams.get('email');
+
+  if (strangerBanner && !isContact && roomId && roomId !== 'global') {
+    strangerBanner.classList.remove('hidden');
+    const infoSpan = strangerBanner.querySelector('.stranger-info span');
+    if (infoSpan && otherEmail && otherEmail !== 'Unknown') {
+      infoSpan.textContent = `Unknown: ${otherEmail}`;
+    }
+  }
+
+  const addContactBtn    = document.getElementById('addContactBtn');
+  const blockStrangerBtn = document.getElementById('blockStrangerBtn');
+  const reportSpamBtn    = document.getElementById('reportSpamBtn');
+
+  if (addContactBtn) {
+    addContactBtn.addEventListener('click', async () => {
+      try {
+        const res = await authFetch(`${BASE_URL}/contacts/save`, {
+          method: 'POST',
+          body: JSON.stringify({ 
+            contact_email: otherEmail, 
+            contact_nickname: otherEmail.split('@')[0] 
+          })
+        });
+        if (res.ok) {
+          showToast("Contact Added!");
+          strangerBanner.classList.add('hidden');
+        } else {
+          showToast("Failed to add contact");
+        }
+      } catch (err) {
+        console.error("Add contact failed", err);
+      }
+    });
+  }
+
+  if (blockStrangerBtn) {
+    blockStrangerBtn.addEventListener('click', async () => {
+      if (confirm("Block this sender? They won't be able to message you.")) {
+        try {
+          const res = await authFetch(`${BASE_URL}/contacts/block/${roomId}`, { method: 'POST' });
+          if (res.ok) {
+            showToast("User Blocked");
+            setTimeout(() => window.location.href = 'home.html', 1000);
+          }
+        } catch (err) {
+          console.error("Block failed", err);
+        }
+      }
+    });
+  }
+
+  if (reportSpamBtn) {
+    reportSpamBtn.addEventListener('click', () => {
+      showToast("Reported as Spam");
+      strangerBanner.classList.add('hidden');
+    });
+  }
+
   // DOM Elements
   const chatBody = document.getElementById('chatBody');
   const msgInput = document.getElementById('msgInput');

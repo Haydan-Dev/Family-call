@@ -1781,3 +1781,74 @@ body::before {
     opacity: 0;
   }
 }
+
+/* --- STRANGER DANGER BANNER --- */
+.stranger-banner {
+  background: rgba(18, 18, 18, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 10;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.stranger-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffc700; /* Gold warning color */
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stranger-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-family: inherit;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.action-btn.add {
+  background: rgba(255, 199, 0, 0.15);
+  border-color: rgba(255, 199, 0, 0.3);
+  color: #ffc700;
+}
+
+.action-btn.add:hover {
+  background: rgba(255, 199, 0, 0.25);
+}
+
+.action-btn.block {
+  color: #ef4444; /* Red for block */
+}
+
+.action-btn.report {
+  color: #94a3b8;
+}
+
+.hidden { display: none !important; }

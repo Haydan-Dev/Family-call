@@ -134,9 +134,14 @@ async def search_conversation_db(db, user_id: str, fetch_archived: bool = False)
         room_id_str = str(conversation["_id"])
         unread_count = unread_map.get(room_id_str, 0)
                 
+        is_contact = saved_contact is not None
+        other_user_email = other_email if other_email else "Unknown"
+
         formatted_list.append({
             "room_id": room_id_str,
             "contact_name": contact_name,
+            "other_user_email": other_user_email,
+            "is_contact": is_contact,
             "last_message": str(conversation.get("last_message", "No messages yet")),
             "is_pinned": is_pinned,
             "is_archived": is_archived,

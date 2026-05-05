@@ -300,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ${unreadBadge}
       `;
       card.addEventListener('click', () => {
-        window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(name)}`;
+        window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(name)}&is_contact=${chat.is_contact}&email=${encodeURIComponent(chat.other_user_email || '')}`;
       });
 
       // Long press / right click logic
