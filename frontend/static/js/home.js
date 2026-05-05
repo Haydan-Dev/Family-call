@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!selectedRoomId) return;
 
       try {
-        if (action === 'pin' || action === 'unpin') {
+      if (action === 'pin' || action === 'unpin') {
           await authFetch(`${BASE_URL}/conversations/pin/${selectedRoomId}`, { method: 'PATCH' });
         } else if (action === 'archive' || action === 'unarchive') {
           // Optimistic UI Update: Instantly hide the card
@@ -59,6 +59,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // The backend /archive endpoint automatically toggles between archive and unarchive
           await authFetch(`${BASE_URL}/conversations/archive/${selectedRoomId}`, { method: 'PATCH' });
+        } else if (action === 'rename') {
+          // Pre-fill modal with current name and open it
+          const card = document.querySelector(`.card-item[data-room-id="${selectedRoomId}"]`);
+          const currentName = card?.querySelector('.name-text')?.firstChild?.textContent?.trim() || '';
+          const renameInput = document.getElementById('renameInput');
+          const renameModal = document.getElementById('renameModal');
+          if (renameInput) renameInput.value = currentName;
+          if (renameModal) renameModal.classList.add('active');
+          setTimeout(() => renameInput?.focus(), 150); // Wait for transition
+          return; // Modal buttons handle the rest
+        } else if (action === 'block') {
+          // Open custom glassmorphic block confirmation modal
+          const blockModal = document.getElementById('blockModal');
+          if (blockModal) blockModal.classList.add('active');
+          return;
+        } else if (action === 'unblock') {
+          // Immediately flip DOM state — no modal needed for unblock
+          const card = document.querySelector(`.card-item[data-room-id="${selectedRoomId}"]`);
+          if (card) card.dataset.isBlocked = 'false';
+          try {
+            await authFetch(`${BASE_URL}/contacts/unblock/${selectedRoomId}`, { method: 'POST' });
+          } catch (err) {
+            // Rollback DOM on failure
+            if (card) card.dataset.isBlocked = 'true';
+            console.error('Unblock API failed:', err);
+          }
+          return;
         } else if (action === 'delete') {
           if (confirm('Delete this chat permanently?')) {
             const cards = document.querySelectorAll(`.card-item[data-room-id="${selectedRoomId}"]`);
@@ -68,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         fetchChats(true); // Silent refresh
         if (archivedSlider && archivedSlider.classList.contains('active')) {
-            fetchArchivedChats(true);
+          fetchArchivedChats(true);
         }
       } catch (err) {
         console.error(err);
@@ -77,7 +104,96 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Fetch logic
+  // ── RENAME MODAL LOGIC ───────────────────────────────────────────────────
+  const renameModal  = document.getElementById('renameModal');
+  const renameInput  = document.getElementById('renameInput');
+  const saveRenameBtn   = document.getElementById('saveRenameBtn');
+  const cancelRenameBtn = document.getElementById('cancelRenameBtn');
+
+  function closeRenameModal() {
+    if (renameModal) renameModal.classList.remove('active');
+  }
+
+  // Cancel button & backdrop click both close without saving
+  if (cancelRenameBtn) cancelRenameBtn.addEventListener('click', closeRenameModal);
+  if (renameModal) {
+    renameModal.addEventListener('click', (e) => {
+      if (e.target === renameModal) closeRenameModal();
+    });
+  }
+
+  // Enter key inside input triggers save
+  if (renameInput) {
+    renameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveRenameBtn?.click();
+    });
+  }
+
+  if (saveRenameBtn) {
+    saveRenameBtn.addEventListener('click', async () => {
+      const newName = renameInput?.value?.trim();
+      if (!newName || !selectedRoomId) { closeRenameModal(); return; }
+
+      // Optimistic DOM update — name updates instantly
+      const card = document.querySelector(`.card-item[data-room-id="${selectedRoomId}"]`);
+      if (card) {
+        const nameEl = card.querySelector('.name-text');
+        if (nameEl && nameEl.firstChild) nameEl.firstChild.textContent = newName + ' ';
+      }
+
+      closeRenameModal();
+
+      // API call — swap URL/method when backend endpoint is ready
+      try {
+        await authFetch(`${BASE_URL}/conversations/rename/${selectedRoomId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ name: newName })
+        });
+      } catch (err) {
+        console.warn('Rename API not ready yet:', err);
+      }
+    });
+  }
+
+  // ── BLOCK MODAL LOGIC ────────────────────────────────────────────────────
+  const blockModal      = document.getElementById('blockModal');
+  const cancelBlockBtn  = document.getElementById('cancelBlockBtn');
+  const confirmBlockBtn = document.getElementById('confirmBlockBtn');
+
+  function closeBlockModal() {
+    if (blockModal) blockModal.classList.remove('active');
+  }
+
+  // Cancel + backdrop close
+  if (cancelBlockBtn) cancelBlockBtn.addEventListener('click', closeBlockModal);
+  if (blockModal) {
+    blockModal.addEventListener('click', (e) => {
+      if (e.target === blockModal) closeBlockModal();
+    });
+  }
+
+  if (confirmBlockBtn) {
+    confirmBlockBtn.addEventListener('click', async () => {
+      closeBlockModal();
+
+      // Optimistic: stamp blocked state immediately so toggle is correct on re-open
+      const card = document.querySelector(`.card-item[data-room-id="${selectedRoomId}"]`);
+      if (card) card.dataset.isBlocked = 'true';
+
+      // Instant DOM removal
+      const cards = document.querySelectorAll(`.card-item[data-room-id="${selectedRoomId}"]`);
+      cards.forEach(c => c.remove());
+
+      // Real API call — persists to MongoDB via FastAPI
+      try {
+        await authFetch(`${BASE_URL}/contacts/block/${selectedRoomId}`, { method: 'POST' });
+      } catch (err) {
+        console.error('Block API failed:', err);
+        // Silent fail — card is already removed from DOM, refresh will restore if backend rejected
+      }
+    });
+  }
+
   const openAddContactModalBtn = document.getElementById('openAddContactModalBtn');
 
   // Layer 3
@@ -99,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
 
       if (data.total_archived_unread !== undefined) {
-         unreadArchivedCount = data.total_archived_unread;
+        unreadArchivedCount = data.total_archived_unread;
       }
 
       let chats = Array.isArray(data) ? data : (data.data || []);
@@ -159,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
       card.className = 'card-item';
       card.dataset.roomId = roomId;
       card.dataset.isPinned = chat.is_pinned ? 'true' : 'false';
+      card.dataset.isBlocked = chat.is_blocked ? 'true' : 'false'; // persist block state
       card.style.animationDelay = `${index * 0.05}s`;
       card.innerHTML = `
         <div class="avatar">${initial}</div>
@@ -176,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
       card.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         selectedRoomId = roomId;
-        
+
         // Dynamically update Pin/Unpin action
         const pinItem = roomContextMenu.querySelector('.ctx-item[data-action="pin"], .ctx-item[data-action="unpin"]');
         const isPinned = card.dataset.isPinned === 'true';
@@ -191,6 +308,13 @@ document.addEventListener('DOMContentLoaded', () => {
           archiveItem.setAttribute('data-action', isArchivedView ? 'unarchive' : 'archive');
           archiveItem.querySelector('span').textContent = isArchivedView ? 'Unarchive' : 'Archive';
         }
+
+        // Dynamically toggle Block / Unblock based on card's current state
+        const isBlocked = card.dataset.isBlocked === 'true';
+        const ctxBlockItem   = document.getElementById('ctxBlockItem');
+        const ctxUnblockItem = document.getElementById('ctxUnblockItem');
+        if (ctxBlockItem)   ctxBlockItem.style.display   = isBlocked ? 'none' : 'flex';
+        if (ctxUnblockItem) ctxUnblockItem.style.display = isBlocked ? 'flex' : 'none';
 
         roomContextMenu.style.display = 'flex';
 
@@ -256,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.error('Error fetching archived chats:', error);
       showState(archivedEmpty, [archivedLoading, archivedList]);
-      if(archivedEmpty.querySelector('p')) archivedEmpty.querySelector('p').textContent = "Failed to load archived chats.";
+      if (archivedEmpty.querySelector('p')) archivedEmpty.querySelector('p').textContent = "Failed to load archived chats.";
     }
   }
 
@@ -441,7 +565,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (payload.event === 'new_message') {
           // Instantly acknowledge delivery and update UI
           authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
-          
+
           const archivedCard = document.querySelector(`#archivedList .card-item[data-room-id="${payload.room_id}"]`);
           const activeCard = document.querySelector(`#chatsList .card-item[data-room-id="${payload.room_id}"]`);
 
@@ -457,7 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             badge.textContent = parseInt(badge.textContent) + 1;
             archivedList.prepend(archivedCard); // bump to top
-            
+
             unreadArchivedCount++;
             updateArchivedBadgeDOM();
             return; // Zero API call execution for loaded archived chats!
@@ -477,18 +601,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateArchivedBadgeDOM() {
       const archivedBtn = document.querySelector('#chatsList .card-item'); // It's always the first item if rendered
       if (archivedBtn && archivedBtn.querySelector('.name-text') && archivedBtn.querySelector('.name-text').textContent.includes('Archived')) {
-          let badge = archivedBtn.querySelector('.unread-badge');
-          if (unreadArchivedCount > 0) {
-              if (!badge) {
-                  badge = document.createElement('div');
-                  badge.className = 'unread-badge';
-                  badge.style.cssText = 'background: #ff9800; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold; margin-left: auto;';
-                  archivedBtn.appendChild(badge);
-              }
-              badge.textContent = unreadArchivedCount;
-          } else if (badge) {
-              badge.remove();
+        let badge = archivedBtn.querySelector('.unread-badge');
+        if (unreadArchivedCount > 0) {
+          if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'unread-badge';
+            badge.style.cssText = 'background: #ff9800; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold; margin-left: auto;';
+            archivedBtn.appendChild(badge);
           }
+          badge.textContent = unreadArchivedCount;
+        } else if (badge) {
+          badge.remove();
+        }
       }
     }
 

@@ -39,6 +39,22 @@
     </main>
 
     <footer class="chat-footer">
+      <div id="replyBanner" class="reply-banner hidden">
+        <!-- Crimson accent bar (matches bubble quote block) -->
+        <div class="reply-accent-bar"></div>
+        <div class="reply-content">
+          <div class="reply-sender" id="replyBannerSender">You</div>
+          <div class="reply-text" id="replyBannerText"></div>
+        </div>
+        <button id="closeReplyBtn" class="close-reply-btn" aria-label="Cancel reply">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
       <div class="attachment-menu" id="attachMenu">
         <div class="attach-item" data-type="document">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -151,6 +167,15 @@
       </svg>
       Edit
     </div>
+    <div class="ctx-item" id="ctxDownload" data-action="download" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download
+    </div>
     <div class="ctx-item delete" id="ctxDelete" data-action="delete">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
         stroke-linejoin="round">
@@ -160,6 +185,23 @@
       Delete
     </div>
   </div>
+
+  <!-- FORWARD MODAL -->
+  <div id="forwardModalOverlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-title">Forward Message</div>
+      <div id="forwardLoading" style="text-align: center; display: none;">
+        <div class="spinner" style="margin: 0 auto;"></div>
+      </div>
+      <div id="forwardList"></div>
+      <div class="modal-actions">
+        <button class="btn-modal btn-cancel" id="closeForwardBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
 
   <script src="static/js/config.js"></script>
   <script src="static/js/chat.js" defer></script>

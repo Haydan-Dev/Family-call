@@ -13,7 +13,7 @@ def save_upload_file(file: UploadFile, upload_dir: str, server_url: str) -> dict
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
-    file_url = f"{server_url}/static/uploads/{unique_filename}"
+    file_url = f"{server_url}/uploads/{unique_filename}"
     
     return {
         "status": 200, 

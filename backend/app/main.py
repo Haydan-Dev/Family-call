@@ -26,6 +26,8 @@ core(app)
 
 # STATIC MOUNT: 'app/static' folder ko public access de raha hai taki frontend files dekh sake
 app.mount("/static", StaticFiles(directory="../frontend"), name="static")
+# MEDIA MOUNT: User ki uploaded images aur files ke liye nayi pipe
+app.mount("/uploads", StaticFiles(directory="app/static/uploads"), name="uploads")
 
 @app.get("/")
 def Home():

@@ -44,6 +44,31 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentMsgCount = 0;
   let isFetching = false;
   let isFirstLoad = true;
+  let replyingToMsgId = null;
+  let currentMediaUrl = null; // Set when context menu opens on a media bubble
+
+  // Utility: Show Custom Toast
+  function showToast(message) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+      if (toast.parentElement) toast.remove();
+    }, 2000);
+  }
+
+  // Setup Reply Banner Close
+  const replyBanner = document.getElementById('replyBanner');
+  const closeReplyBtn = document.getElementById('closeReplyBtn');
+  if (closeReplyBtn) {
+    closeReplyBtn.addEventListener('click', () => {
+      replyingToMsgId = null;
+      replyBanner.classList.add('hidden');
+    });
+  }
 
 
 
@@ -81,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pinnedBanner = document.getElementById('pinnedMessageBanner');
     const pinnedText = document.getElementById('pinnedBannerText');
     const pinnedMessage = messages.find(m => m.is_pinned === true);
-    
+
     if (pinnedBanner && pinnedText) {
       if (pinnedMessage) {
         pinnedText.textContent = pinnedMessage.content || "Pinned message";
@@ -144,6 +169,66 @@ document.addEventListener('DOMContentLoaded', () => {
         bubble.dataset.isPinned = "false";
       }
 
+      // Add Forwarded Tag
+      if (msg.is_forwarded) {
+        const fwdTag = document.createElement('div');
+        fwdTag.className = 'forwarded-tag';
+        fwdTag.innerHTML = `<span>↪️</span> Forwarded`;
+        bubble.appendChild(fwdTag);
+      }
+
+      // Add Quote Block if it's a reply
+      if (msg.reply_to_message_id) {
+        const originalMsg = messages.find(m => String(m._id || m.id) === String(msg.reply_to_message_id));
+        let quoteText = 'Original message...';
+        let quoteSender = 'Replying to';
+
+        if (originalMsg) {
+          quoteText = originalMsg.content || 'Media / Attachment';
+
+          const origSenderId = originalMsg.sender_id || originalMsg.user_id;
+          let origIsMine = false;
+          if (originalMsg.is_mine !== undefined) origIsMine = originalMsg.is_mine;
+          else if (myUserId && origSenderId) origIsMine = String(origSenderId) === String(myUserId);
+
+          let roomTitle = document.getElementById('roomTitle').textContent;
+          if (roomTitle.startsWith('Room:')) roomTitle = 'Contact';
+
+          quoteSender = origIsMine ? 'You' : roomTitle;
+        }
+
+        // Build the reply quote block using DOM (safe, no innerHTML XSS risk)
+        const qBlock = document.createElement('div');
+        qBlock.className = 'reply-container';
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'quote-title';
+        titleEl.textContent = quoteSender;
+
+        const textEl = document.createElement('div');
+        textEl.className = 'quote-text';
+        textEl.textContent = quoteText; // CSS handles single-line truncation via ellipsis
+
+        qBlock.appendChild(titleEl);
+        qBlock.appendChild(textEl);
+
+        // Step 4 — Click quote block to scroll to the original message with crimson flash
+        qBlock.addEventListener('click', () => {
+          const targetId = msg.reply_to_message_id;
+          const targetBubble = document.querySelector(`.bubble[data-id="${targetId}"]`);
+          if (targetBubble) {
+            targetBubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Remove class first to re-trigger animation if already flashed
+            targetBubble.classList.remove('highlight-flash');
+            void targetBubble.offsetWidth; // Force reflow
+            targetBubble.classList.add('highlight-flash');
+            setTimeout(() => targetBubble.classList.remove('highlight-flash'), 1150);
+          }
+        });
+
+        bubble.appendChild(qBlock);
+      }
+
       // Context Menu Event
       bubble.oncontextmenu = (e) => {
         e.preventDefault();
@@ -157,13 +242,28 @@ document.addEventListener('DOMContentLoaded', () => {
           document.getElementById('ctxDelete').style.display = 'none';
         }
 
+        // --- Detect media in this bubble → show/hide Download option ---
+        currentMediaUrl = null;
+        const ctxDownloadEl = document.getElementById('ctxDownload');
+        if (ctxDownloadEl) {
+          const mediaImg = bubble.querySelector('img[src]');
+          const mediaVideo = bubble.querySelector('video[src]');
+          const mediaAnchor = bubble.querySelector('a[href*="/uploads/"]');
+
+          if (mediaImg) currentMediaUrl = mediaImg.src;
+          else if (mediaVideo) currentMediaUrl = mediaVideo.src;
+          else if (mediaAnchor) currentMediaUrl = mediaAnchor.href;
+
+          ctxDownloadEl.style.display = currentMediaUrl ? 'flex' : 'none';
+        }
+
         // Dynamically update Pin/Unpin
         const pinItem = msgContextMenu.querySelector('.ctx-item[data-action="pin"], .ctx-item[data-action="unpin"]');
         if (pinItem) {
           const isPinned = bubble.dataset.isPinned === "true";
           pinItem.setAttribute('data-action', isPinned ? 'unpin' : 'pin');
-          pinItem.innerHTML = isPinned ? 
-            `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 11.24V6a3 3 0 0 0-6 0v5.24a2 2 0 0 1-1.11 1.31l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg> Unpin` : 
+          pinItem.innerHTML = isPinned ?
+            `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"></line><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 11.24V6a3 3 0 0 0-6 0v5.24a2 2 0 0 1-1.11 1.31l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg> Unpin` :
             `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 11.24V6a3 3 0 0 0-6 0v5.24a2 2 0 0 1-1.11 1.31l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg> Pin`;
         }
 
@@ -275,6 +375,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Step 5 — Attach swipe-to-reply gesture
+      attachSwipeToReply(bubble, msg, isMine);
+
       chatBody.appendChild(bubble);
     });
 
@@ -328,13 +431,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Use robust helper function
     const typeOfMsg = getMessageType(content);
 
+    const payloadObj = {
+      message_type: typeOfMsg,
+      content: content
+    };
+    if (replyingToMsgId) {
+      payloadObj.reply_to_message_id = replyingToMsgId;
+    }
+
     try {
       if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-        window.ws.send(JSON.stringify({ message_type: typeOfMsg, content: content }));
+        window.ws.send(JSON.stringify(payloadObj));
       } else {
         const res = await authFetch(`${BASE_URL}/messages/send/${roomId}`, {
           method: 'POST',
-          body: JSON.stringify({ message_type: typeOfMsg, content: content })
+          body: JSON.stringify(payloadObj)
         });
         if (res.ok) await fetchHistory();
         else {
@@ -346,6 +457,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error(err);
       msgInput.value = originalText;
     } finally {
+      // Clear reply state after sending
+      replyingToMsgId = null;
+      if (replyBanner) replyBanner.classList.add('hidden');
+
       checkInput();
       msgInput.focus();
     }
@@ -567,33 +682,390 @@ document.addEventListener('DOMContentLoaded', () => {
         switch (action) {
           case 'delete':
             await authFetch(`${BASE_URL}/messages/delete/${selectedMsgId}`, { method: 'DELETE' });
-            break;
+            return; // zero-API handled by WS
           case 'edit':
-            const newText = prompt('Enter new message text:');
-            if (newText && newText.trim() !== '') {
-              await authFetch(`${BASE_URL}/messages/edit/${selectedMsgId}`, {
-                method: 'PATCH',
-                body: JSON.stringify({ content: newText.trim() })
-              });
-            }
-            break;
+            const editBubble = document.querySelector(`.bubble[data-id="${selectedMsgId}"]`);
+            if (!editBubble) return;
+            const textSpan = editBubble.querySelector('span:not(.message-time)');
+            if (!textSpan) return;
+
+            // Prevent multiple inline edits on the same bubble
+            if (editBubble.querySelector('.inline-edit-container')) return;
+
+            const originalTextContent = textSpan.textContent;
+            textSpan.style.display = 'none';
+
+            const editContainer = document.createElement('div');
+            editContainer.className = 'inline-edit-container';
+            editContainer.innerHTML = `
+              <textarea class="inline-edit-input">${originalTextContent}</textarea>
+              <div class="inline-edit-actions">
+                <button class="inline-btn cancel">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg> Cancel
+                </button>
+                <button class="inline-btn save">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Save
+                </button>
+              </div>
+            `;
+            editBubble.appendChild(editContainer);
+
+            const textarea = editContainer.querySelector('.inline-edit-input');
+            textarea.focus();
+            // Move cursor to end
+            textarea.selectionStart = textarea.value.length;
+
+            const cancelBtn = editContainer.querySelector('.cancel');
+            const saveBtn = editContainer.querySelector('.save');
+
+            cancelBtn.onclick = (e) => {
+              e.stopPropagation();
+              editContainer.remove();
+              textSpan.style.display = '';
+            };
+
+            saveBtn.onclick = async (e) => {
+              e.stopPropagation();
+              const newText = textarea.value.trim();
+              if (newText && newText !== originalTextContent) {
+                editContainer.remove();
+                textSpan.style.display = '';
+                // Optimistic local update (optional, but WS handles it if we just wait)
+                textSpan.textContent = newText;
+                await authFetch(`${BASE_URL}/messages/edit/${selectedMsgId}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify({ content: newText })
+                });
+              } else {
+                cancelBtn.click();
+              }
+            };
+            return; // zero-API handled by WS
           case 'pin':
           case 'unpin':
             await authFetch(`${BASE_URL}/messages/pin/${selectedMsgId}`, { method: 'PATCH' });
-            break;
+
+            // Zero-API DOM Patch
+            const msgBubble = document.querySelector(`.bubble[data-id="${selectedMsgId}"]`);
+            const isNowPinned = action === 'pin';
+            if (msgBubble) {
+              msgBubble.dataset.isPinned = isNowPinned ? "true" : "false";
+              if (isNowPinned) {
+                // Update Banner
+                const pinnedBanner = document.getElementById('pinnedMessageBanner');
+                const pinnedText = document.getElementById('pinnedBannerText');
+                if (pinnedBanner && pinnedText) {
+                  let txt = "Pinned message";
+                  const span = msgBubble.querySelector('span');
+                  if (span) txt = span.textContent;
+                  pinnedText.textContent = txt;
+                  pinnedBanner.classList.remove('hidden');
+                }
+
+                // Unpin other bubbles locally
+                document.querySelectorAll('.bubble[data-is-pinned="true"]').forEach(b => {
+                  if (b !== msgBubble) {
+                    b.dataset.isPinned = "false";
+                    // Find and remove the pin emoji element
+                    Array.from(b.children).forEach(child => {
+                      if (child.textContent === '📌') child.remove();
+                    });
+                  }
+                });
+
+                // Add pin icon to this bubble
+                const existingPin = Array.from(msgBubble.children).find(el => el.textContent === '📌');
+                if (!existingPin) {
+                  const pinIndicator = document.createElement('div');
+                  pinIndicator.textContent = '📌';
+                  pinIndicator.style.fontSize = '12px';
+                  pinIndicator.style.position = 'absolute';
+                  pinIndicator.style.top = '-8px';
+                  pinIndicator.style.right = '-8px';
+                  msgBubble.appendChild(pinIndicator);
+                }
+              } else {
+                // Remove pin icon
+                Array.from(msgBubble.children).forEach(child => {
+                  if (child.textContent === '📌') child.remove();
+                });
+
+                // Hide Banner
+                const pinnedBanner = document.getElementById('pinnedMessageBanner');
+                if (pinnedBanner) pinnedBanner.classList.add('hidden');
+              }
+            }
+            return; // zero-API handled locally
           case 'forward':
-            alert('Forward logic: Select a room first!');
-            break;
-          case 'reply':
-            console.log("Reply action triggered for:", selectedMsgId);
-            break;
+            const fwModal = document.getElementById('forwardModalOverlay');
+            const fwList = document.getElementById('forwardList');
+            const fwLoad = document.getElementById('forwardLoading');
+            if (!fwModal) break;
+
+            fwModal.classList.add('active');
+            fwLoad.style.display = 'block';
+            fwList.innerHTML = '';
+
+            try {
+              const res = await authFetch(`${BASE_URL}/conversations/display_conversations`, { method: 'GET' });
+              const data = await res.json();
+              let chats = Array.isArray(data) ? data : (data.data || []);
+              fwLoad.style.display = 'none';
+
+              if (chats.length === 0) {
+                fwList.innerHTML = '<div style="text-align:center; padding:20px; color:#A0A0A0;">No recent chats.</div>';
+              } else {
+                chats.forEach(chat => {
+                  const item = document.createElement('div');
+                  item.className = 'forward-item';
+                  const initial = (chat.contact_name || 'U').charAt(0).toUpperCase();
+                  item.innerHTML = `
+                    <div class="avatar" style="background: rgba(255,199,0,0.1); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#FFC700;">${initial}</div>
+                    <div style="flex:1; font-weight:500;">${chat.contact_name || 'Unknown'}</div>
+                  `;
+                  item.onclick = async () => {
+                    try {
+                      item.style.opacity = '0.5';
+                      await authFetch(`${BASE_URL}/messages/forward/${selectedMsgId}`, {
+                        method: 'POST',
+                        body: JSON.stringify({ target_room_id: chat.room_id })
+                      });
+                      fwModal.classList.remove('active');
+                      showToast('Message forwarded successfully!');
+                    } catch (e) {
+                      showToast('Forward failed');
+                    }
+                  };
+                  fwList.appendChild(item);
+                });
+              }
+            } catch (e) {
+              fwLoad.style.display = 'none';
+              fwList.innerHTML = '<div style="color:red; text-align:center;">Failed to load chats.</div>';
+            }
+            return;
+          case 'download': {
+            console.log('Media URL:', currentMediaUrl); // DEBUG
+            if (!currentMediaUrl) {
+              showToast('No media found to download.');
+              return;
+            }
+
+            const dlFilename = currentMediaUrl.split('/').pop().split('?')[0] || 'download';
+            showToast('Downloading...');
+
+            // Use fetch → blob to force download, bypasses browser anchor CORS block
+            fetch(currentMediaUrl)
+              .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.blob();
+              })
+              .then(blob => {
+                const blobUrl = URL.createObjectURL(blob);
+                const dlAnchor = document.createElement('a');
+                dlAnchor.href = blobUrl;
+                dlAnchor.download = dlFilename;
+                dlAnchor.style.display = 'none';
+                document.body.appendChild(dlAnchor);
+                dlAnchor.click();
+                document.body.removeChild(dlAnchor);
+                // Revoke blob URL after short delay so browser can start download
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+                showToast(`Downloaded: ${dlFilename}`);
+              })
+              .catch(err => {
+                console.error('Download failed:', err);
+                showToast('Download failed. Check console.');
+              });
+
+            // Close menu immediately (download runs async)
+            msgContextMenu.classList.remove('active');
+            msgContextMenu.style.display = 'none';
+            return;
+          }
+          case 'reply': {
+            replyingToMsgId = selectedMsgId;
+            const replyBubble = document.querySelector(`.bubble[data-id="${selectedMsgId}"]`);
+            let replyTxt = 'Message';
+            let replySender = 'You';
+
+            if (replyBubble) {
+              // Get the text content — skip quote/forwarded sub-elements
+              const span = replyBubble.querySelector('span');
+              if (span) replyTxt = span.textContent.trim();
+
+              // Determine sender: msg-right = mine, msg-left = contact
+              if (!replyBubble.classList.contains('msg-right')) {
+                let roomTitle = document.getElementById('roomTitle').textContent.trim();
+                replySender = roomTitle.startsWith('Room:') ? 'Contact' : roomTitle;
+              }
+            }
+
+            const rbSender = document.getElementById('replyBannerSender');
+            const rbText = document.getElementById('replyBannerText');
+            if (rbSender) rbSender.textContent = replySender;
+            if (rbText) rbText.textContent = replyTxt;
+
+            // Force banner animation replay
+            if (replyBanner) {
+              replyBanner.classList.remove('hidden');
+              replyBanner.style.animation = 'none';
+              void replyBanner.offsetWidth; // reflow
+              replyBanner.style.animation = '';
+            }
+
+            document.getElementById('msgInput').focus();
+            return; // No backend fetch needed for UI state
+          }
         }
-        // Update UI immediately after API hit
+        // Update UI immediately after API hit (for actions like Pin that still need it)
         fetchHistory();
       } catch (err) {
         console.error("Context menu action failed:", err);
       }
     });
   });
+
+  // Setup Forward Modal Close
+  const closeForwardBtn = document.getElementById('closeForwardBtn');
+  if (closeForwardBtn) {
+    closeForwardBtn.addEventListener('click', () => {
+      document.getElementById('forwardModalOverlay').classList.remove('active');
+    });
+  }
+
+  // Setup Quote Block interaction
+  document.querySelectorAll('.quote-block').forEach(qBlock => {
+    qBlock.onclick = (e) => {
+      e.stopPropagation();
+      const targetId = qBlock.dataset.replyTo;
+      const targetBubble = document.querySelector(`.bubble[data-id="${targetId}"]`);
+      if (targetBubble) {
+        targetBubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetBubble.classList.add('flash-highlight');
+        setTimeout(() => targetBubble.classList.remove('flash-highlight'), 1000);
+      }
+    };
+  });
+
+  // ================================================================
+  // Step 5 — attachSwipeToReply
+  // WhatsApp-style right-swipe gesture on each bubble.
+  // - Swipe right > THRESHOLD px  → triggers the reply UI
+  // - Spring animation returns bubble to origin on release
+  // - Crimson reply-arrow icon fades in proportionally to drag distance
+  // ================================================================
+  function attachSwipeToReply(bubble, msg, isMine) {
+    const THRESHOLD = 62;   // px to cross before reply triggers
+    const MAX_DRAG = 90;   // cap drag distance (px)
+    const ICON_START = 20;   // px at which icon starts appearing
+
+    let startX = 0;
+    let currentX = 0;
+    let swiping = false;
+    let triggered = false;
+
+    // Create the swipe icon once and append to bubble
+    const icon = document.createElement('div');
+    icon.className = 'swipe-reply-icon';
+    icon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 17 4 12 9 7"></polyline>
+      <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+    </svg>`;
+    bubble.appendChild(icon);
+
+    // --- TOUCH START ---
+    bubble.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      currentX = 0;
+      swiping = true;
+      triggered = false;
+      bubble.classList.add('is-swiping'); // disable CSS transition during drag
+    }, { passive: true });
+
+    // --- TOUCH MOVE ---
+    bubble.addEventListener('touchmove', (e) => {
+      if (!swiping) return;
+      const rawDelta = e.touches[0].clientX - startX;
+
+      // Only track RIGHT swipe (positive delta)
+      if (rawDelta <= 0) {
+        bubble.style.transform = 'translateX(0)';
+        icon.classList.remove('visible');
+        return;
+      }
+
+      // Cap the drag
+      currentX = Math.min(rawDelta, MAX_DRAG);
+      bubble.style.transform = `translateX(${currentX}px)`;
+
+      // Fade-in icon proportionally after ICON_START px
+      if (currentX > ICON_START) {
+        icon.classList.add('visible');
+      } else {
+        icon.classList.remove('visible');
+      }
+
+      // Haptic + early trigger feedback at threshold
+      if (currentX >= THRESHOLD && !triggered) {
+        triggered = true;
+        if (navigator.vibrate) navigator.vibrate(35); // gentle haptic
+      }
+    }, { passive: true });
+
+    // --- TOUCH END ---
+    bubble.addEventListener('touchend', () => {
+      if (!swiping) return;
+      swiping = false;
+
+      // Re-enable CSS spring transition for return animation
+      bubble.classList.remove('is-swiping');
+      bubble.style.transform = 'translateX(0)';
+      icon.classList.remove('visible');
+
+      // If threshold was crossed, fire reply
+      if (triggered) {
+        triggerReply(msg._id || msg.id, bubble, isMine);
+      }
+
+      currentX = 0;
+      triggered = false;
+    }, { passive: true });
+  }
+
+  // Helper called by both context menu AND swipe gesture
+  function triggerReply(msgId, bubble, isMine) {
+    replyingToMsgId = msgId;
+
+    let replyTxt = 'Message';
+    let replySender = 'You';
+
+    if (bubble) {
+      const span = bubble.querySelector('span');
+      if (span) replyTxt = span.textContent.trim();
+
+      if (!isMine) {
+        let roomTitle = document.getElementById('roomTitle').textContent.trim();
+        replySender = roomTitle.startsWith('Room:') ? 'Contact' : roomTitle;
+      }
+    }
+
+    const rbSender = document.getElementById('replyBannerSender');
+    const rbText = document.getElementById('replyBannerText');
+    if (rbSender) rbSender.textContent = replySender;
+    if (rbText) rbText.textContent = replyTxt;
+
+    const banner = document.getElementById('replyBanner');
+    if (banner) {
+      banner.classList.remove('hidden');
+      // Replay slide-in animation
+      banner.style.animation = 'none';
+      void banner.offsetWidth;
+      banner.style.animation = '';
+    }
+
+    document.getElementById('msgInput').focus();
+  }
 
 });
