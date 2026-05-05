@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Blocked Users — Hamnasheen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="static/css/style.css">
+  <style>
+    /* Page-specific overrides */
+    .blocked-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 20px 10px;
+    }
+    .back-btn {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      cursor: pointer;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      border-radius: 50%;
+      transition: background 0.2s, color 0.2s;
+    }
+    .back-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+    .page-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .blocked-list {
+      padding: 8px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .blocked-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 12px 16px;
+      animation: fadeSlideIn 0.3s ease both;
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .blocked-card .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: rgba(145,8,49,0.18);
+      border: 1px solid rgba(145,8,49,0.35);
+      color: #c41040;
+      font-weight: 700;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .blocked-info {
+      flex: 1;
+      overflow: hidden;
+    }
+    .blocked-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .blocked-email {
+      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 2px;
+    }
+
+    .unblock-btn {
+      background: rgba(145,8,49,0.12);
+      border: 1px solid rgba(145,8,49,0.35);
+      color: #c41040;
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.2s, transform 0.15s;
+      font-family: inherit;
+    }
+    .unblock-btn:hover  { background: rgba(145,8,49,0.25); transform: scale(1.04); }
+    .unblock-btn:active { transform: scale(0.97); }
+
+    .empty-blocked {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255,255,255,0.35);
+      font-size: 14px;
+    }
+    .empty-blocked svg { opacity: 0.25; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="blocked-header">
+    <button class="back-btn" id="backBtn" title="Back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="19" y1="12" x2="5" y2="12"/>
+        <polyline points="12 19 5 12 12 5"/>
+      </svg>
+    </button>
+    <div class="page-title">Blocked Users</div>
+  </div>
+
+  <!-- Loading -->
+  <div class="state-box" id="loadingState">
+    <div class="spinner"></div>
+    <p>Loading blocked users...</p>
+  </div>
+
+  <!-- Empty -->
+  <div class="state-box hidden" id="emptyState">
+    <div class="empty-blocked">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+      </svg>
+      <p>No blocked users.<br>You haven't blocked anyone yet.</p>
+    </div>
+  </div>
+
+  <!-- List -->
+  <div class="blocked-list hidden" id="blockedList"></div>
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="static/js/config.js"></script>
+<script src="static/js/blocked_users.js" defer></script>
+</body>
+</html>

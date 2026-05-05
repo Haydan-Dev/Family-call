@@ -136,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Optimistic DOM update — name updates instantly
       const card = document.querySelector(`.card-item[data-room-id="${selectedRoomId}"]`);
+      const oldName = card?.querySelector('.name-text')?.firstChild?.textContent?.trim() || '';
       if (card) {
         const nameEl = card.querySelector('.name-text');
         if (nameEl && nameEl.firstChild) nameEl.firstChild.textContent = newName + ' ';
@@ -143,14 +144,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
       closeRenameModal();
 
-      // API call — swap URL/method when backend endpoint is ready
+      // Persist to backend — /contacts/rename/{room_id}
       try {
-        await authFetch(`${BASE_URL}/conversations/rename/${selectedRoomId}`, {
+        const res = await authFetch(`${BASE_URL}/contacts/rename/${selectedRoomId}`, {
           method: 'PATCH',
           body: JSON.stringify({ name: newName })
         });
+        if (res.ok) {
+          console.log('Rename API: 200 OK — persisted for room', selectedRoomId);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          console.error('Rename API failed:', res.status, err);
+          alert('Rename failed: ' + (err.detail || `HTTP ${res.status}`));
+          // Rollback optimistic update
+          if (card) {
+            const nameEl = card.querySelector('.name-text');
+            if (nameEl && nameEl.firstChild) nameEl.firstChild.textContent = oldName + ' ';
+          }
+        }
       } catch (err) {
-        console.warn('Rename API not ready yet:', err);
+        console.error('Rename API network error:', err);
+        alert('Rename failed — network error.');
       }
     });
   }
@@ -347,6 +361,13 @@ document.addEventListener('DOMContentLoaded', () => {
             archiveItem.setAttribute('data-action', isArchivedView ? 'unarchive' : 'archive');
             archiveItem.querySelector('span').textContent = isArchivedView ? 'Unarchive' : 'Archive';
           }
+
+          // Dynamically toggle Block / Unblock based on card's current state
+          const isBlocked = card.dataset.isBlocked === 'true';
+          const ctxBlockItem   = document.getElementById('ctxBlockItem');
+          const ctxUnblockItem = document.getElementById('ctxUnblockItem');
+          if (ctxBlockItem)   ctxBlockItem.style.display   = isBlocked ? 'none' : 'flex';
+          if (ctxUnblockItem) ctxUnblockItem.style.display = isBlocked ? 'flex' : 'none';
 
           roomContextMenu.style.display = 'flex';
           roomContextMenu.style.left = `${e.touches[0].pageX}px`;

@@ -120,6 +120,10 @@ async def search_conversation_db(db, user_id: str, fetch_archived: bool = False)
                             contact_name = other_email.split('@')[0]
                         else:
                             contact_name = other_user.get("name") or "Unknown User"
+
+                    # Skip blocked contacts — they must not appear on Home
+                    if saved_contact and saved_contact.get("is_blocked", False):
+                        continue
             except Exception:
                 pass
                 
@@ -136,6 +140,7 @@ async def search_conversation_db(db, user_id: str, fetch_archived: bool = False)
             "last_message": str(conversation.get("last_message", "No messages yet")),
             "is_pinned": is_pinned,
             "is_archived": is_archived,
+            "is_blocked": False,  # Only non-blocked reach this point
             "unread_count": unread_count
         })
         

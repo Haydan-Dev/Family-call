@@ -14,14 +14,20 @@
   <!-- --- LAYER 1: MAIN DASHBOARD --- -->
   <header>
     <div class="app-name">Ham<em>nasheen</em></div>
-    <button class="logout-btn" id="logoutBtn">
-      <span>Logout</span>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-        <polyline points="16 17 21 12 16 7"></polyline>
-        <line x1="21" y1="12" x2="9" y2="12"></line>
-      </svg>
-    </button>
+    <div class="header-actions">
+      <a href="blocked_users.html" class="blocked-link" style="color: rgba(255,255,255,0.6); text-decoration: none; font-size: 14px; margin-right: 15px; display: flex; align-items: center; gap: 5px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        <span>Blocked</span>
+      </a>
+      <button class="logout-btn" id="logoutBtn">
+        <span>Logout</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+      </button>
+    </div>
   </header>
 
   <main class="main-dashboard">
