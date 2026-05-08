@@ -673,9 +673,17 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const payload = JSON.parse(event.data);
         
-        // ── STRICT SIGNALING GATEWAYS ──
         if (payload.event === 'incoming_call') {
           showIncomingCall(payload.caller_name || 'Unknown', payload.room_id, payload.call_type || 'video');
+          return; // Stop execution
+        }
+
+        if (payload.event === 'call_cancelled') {
+          console.log("Caller cancelled the call.");
+          const overlay = document.getElementById('incomingCallOverlay');
+          if (overlay) {
+            overlay.style.display = 'none';
+          }
           return; // Stop execution
         }
         
@@ -1199,6 +1207,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const declineBtn = document.getElementById('declineCallOverlayBtn');
       if (declineBtn) {
         declineBtn.onclick = () => {
+          if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+            window.ws.send(JSON.stringify({
+              event: "call_declined",
+              room_id: roomID
+            }));
+          }
           overlay.style.display = 'none';
         };
       }

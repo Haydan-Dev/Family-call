@@ -123,6 +123,7 @@
     let peerConnection;
     let pendingOffer = null;
     let remoteIceCandidatesQueue = [];
+    let isCallConnected = false;
 
     const servers = {
       iceServers: [
@@ -207,8 +208,15 @@
 
     ws.onmessage = async (event) => {
       const data = JSON.parse(event.data);
-      if (data.event === 'call_accepted') {
+      if (data.event === 'call_declined') {
+        console.log("Receiver declined the call. Redirecting...");
+        endCall(false);
+      } else if (data.event === 'call_ended') {
+        console.log("Remote participant ended the call.");
+        endCall(false);
+      } else if (data.event === 'call_accepted') {
         console.log("Receiver accepted call. Initiating WebRTC handshakes...");
+        isCallConnected = true;
         const timerEl = document.getElementById('callTimer');
         if (timerEl) timerEl.textContent = "00:00";
         initiateCall();
@@ -268,6 +276,7 @@
         return;
       }
       console.log("Received remote offer, processing...");
+      isCallConnected = true;
       if (!peerConnection) {
         await createPeerConnection();
       }
@@ -316,7 +325,17 @@
     }
 
     // End call: stop stream tracks and close peer connection
-    function endCall() {
+    function endCall(isInitiator) {
+      if (isInitiator) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          const state = urlParams.get('state');
+          if (!isCallConnected && state === 'ringing') {
+            ws.send(JSON.stringify({ event: "call_cancelled", room_id: roomId }));
+          } else {
+            ws.send(JSON.stringify({ event: "call_ended", room_id: roomId }));
+          }
+        }
+      }
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
@@ -330,7 +349,11 @@
       window.location.href = `chat.html?room_id=${backRoomId}`;
     }
 
-    document.getElementById('endCallBtn').onclick = endCall;
+    document.getElementById('endCallBtn').onclick = () => endCall(true);
+
+    window.onbeforeunload = () => {
+      endCall(true);
+    };
   </script>
 </body>
 </html>
