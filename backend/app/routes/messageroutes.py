@@ -53,7 +53,20 @@ async def messages_history(conversation_id: str, user_id: str = Depends(get_curr
 
     chat_history = await get_history_db(db, conversation_id, user_id)
     if chat_history is not None:
-        return {"status": 200, "Message": "Chat History Found", "Chat": chat_history}
+        from app.services.contact_services import _get_contact_email_from_room
+        email = await _get_contact_email_from_room(db, conversation_id, user_id)
+        is_saved_contact = False
+        if email:
+            contact = await db.contacts.find_one({"owner_id": user_id, "contact_email": email})
+            if contact:
+                is_saved_contact = True
+                
+        return {
+            "status": 200, 
+            "Message": "Chat History Found", 
+            "Chat": chat_history,
+            "is_saved_contact": is_saved_contact
+        }
     else:
         raise HTTPException(status_code=404, detail="Conversation ID Not Found")
 

@@ -80,12 +80,57 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
             success = await create_message_db(db, room_id, user_id, full_message)
             
             if success:
+                sender_name = "Unknown"
+                try:
+                    sender_user = await db.users.find_one({"_id": ObjectId(user_id)})
+                    if sender_user:
+                        sender_name = sender_user.get("full_name", "Unknown")
+                except Exception:
+                    pass
+
                 # Send confirmation to sender
-                await manager.send_personal_message({"event": "new_message_sent", "room_id": room_id}, user_id)
+                await manager.send_personal_message({
+                    "event": "new_message_sent", 
+                    "room_id": room_id,
+                    "content": full_message.content,
+                    "sender_id": user_id,
+                    "sender_name": sender_name,
+                    "message_type": full_message.message_type
+                }, user_id)
                 
                 # Notify recipient
                 if recipient_id and recipient_id != user_id:
-                    await manager.send_personal_message({"event": "new_message", "room_id": room_id}, recipient_id)
+                    await manager.send_personal_message({
+                        "event": "new_message", 
+                        "room_id": room_id,
+                        "content": full_message.content,
+                        "sender_id": user_id,
+                        "sender_name": sender_name,
+                        "message_type": full_message.message_type
+                    }, recipient_id)
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
+
+@router.websocket("/call/{room_id}/{client_id}")
+async def call_websocket_endpoint(websocket: WebSocket, room_id: str, client_id: str):
+    await manager.connect(websocket, client_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg_dict = json.loads(data)
+                room_obj_id = ObjectId(room_id)
+                room = await db.conversations.find_one({"_id": room_obj_id})
+                if room:
+                    participant_ids = room.get("participant_ids", [])
+                    recipient_id = next((pid for pid in participant_ids if pid != client_id), None)
+                    if recipient_id:
+                        await manager.send_personal_message(msg_dict, recipient_id)
+            except Exception:
+                continue
+    except WebSocketDisconnect:
+        try:
+            manager.disconnect(client_id)
+        except TypeError:
+            manager.disconnect(websocket, client_id)

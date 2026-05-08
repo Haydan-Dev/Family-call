@@ -8,23 +8,35 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap"
     rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="static/css/style.css">
 </head>
 
 <body>
 
-  <div class="chat-container">
+<div class="hn-root">
+  <div class="phone" style="background: #0a0a0a;">
 
-    <header class="chat-header">
-      <button class="back-btn" id="backBtn" onclick="window.location.href='home.html'">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-          stroke-linecap="round" stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12"></line>
-          <polyline points="12 19 5 12 12 5"></polyline>
-        </svg>
+    <header class="chat-header" style="padding: 12px 16px; background: #111111; border-bottom: 1px solid rgba(255, 199, 0, 0.1); display: flex; align-items: center; gap: 12px; z-index: 10;">
+      <button class="back-btn" id="backBtn" onclick="window.location.href='home.html'" style="background: none; border: none; color: #FFC700; font-size: 20px; cursor: pointer; display: flex; align-items: center;">
+        <i class="ti ti-arrow-left"></i>
       </button>
-      <div class="header-title" id="roomTitle">Loading Chat...</div>
-      <div style="width:24px;"></div> <!-- Spacer to keep title centered -->
+      <div class="avatar" id="headerAvatar" style="width: 38px; height: 38px; border-radius: 50%; background: #1f1f1f; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #FFC700; position: relative;">
+        <span id="avatarInitial">P</span>
+        <div class="online-dot" style="position: absolute; bottom: 1px; right: 1px; width: 10px; height: 10px; border-radius: 50%; background: #25D366; border: 2px solid #111;"></div>
+      </div>
+      <div class="chat-header-info" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <p class="chat-header-name" id="roomTitle" style="font-size: 15px; font-weight: 600; color: #fff; margin: 0; line-height: 1.2;">Loading Chat...</p>
+        <p class="chat-header-sub online" style="font-size: 11px; color: #25D366; margin: 4px 0 0 0; line-height: 1.2;">Online</p>
+      </div>
+      <div class="call-btns" style="display: flex; gap: 8px;">
+        <button class="call-btn" id="voiceCallBtn" style="width: 34px; height: 34px; border-radius: 50%; background: rgba(255,199,0,0.08); border: 1px solid rgba(255,199,0,0.15); display: flex; align-items: center; justify-content: center; cursor: pointer; color: #FFC700; font-size: 16px;">
+          <i class="ti ti-phone"></i>
+        </button>
+        <button class="call-btn" id="videoCallBtn" style="width: 34px; height: 34px; border-radius: 50%; background: rgba(255,199,0,0.08); border: 1px solid rgba(255,199,0,0.15); display: flex; align-items: center; justify-content: center; cursor: pointer; color: #FFC700; font-size: 16px;">
+          <i class="ti ti-video"></i>
+        </button>
+      </div>
     </header>
 
     <div id="strangerBanner" class="stranger-banner hidden">
@@ -119,24 +131,18 @@
         </div>
       </div>
       <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none" />
-      <button class="media-btn" id="mediaBtn">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-          stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
+      <button class="media-btn" id="mediaBtn" style="background: none; border: none; color: #888; font-size: 22px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; padding: 0;">
+        <i class="ti ti-paperclip"></i>
       </button>
-      <input type="text" class="msg-input" id="msgInput" placeholder="Message..." autocomplete="off" />
-      <button class="send-btn" id="sendBtn" disabled>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-          stroke-linecap="round" stroke-linejoin="round" style="margin-left: -2px;">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
+      <div class="msg-input-wrapper" style="flex: 1; position: relative; display: flex; align-items: center;">
+        <input type="text" class="msg-input" id="msgInput" placeholder="Type a message..." autocomplete="off" style="width: 100%; padding: 12px 40px 12px 16px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; color: #FFFFFF; font-size: 14px; outline: none;" />
+        <i class="ti ti-mood-smile" style="position: absolute; right: 14px; color: #555; font-size: 18px; cursor: pointer;"></i>
+      </div>
+      <button class="send-btn" id="sendBtn" style="width: 44px; height: 44px; border-radius: 50%; background: #FFC700; color: #111111; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(255, 199, 0, 0.2);">
+        <i class="ti ti-microphone" id="sendBtnIcon"></i>
       </button>
     </footer>
 
-  </div>
 
   <!-- CONTEXT MENU -->
   <div id="msgContextMenu" class="context-menu">
@@ -209,6 +215,9 @@
 
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container"></div>
+
+  </div> <!-- end phone -->
+</div> <!-- end hn-root -->
 
   <script src="static/js/config.js"></script>
   <script src="static/js/chat.js" defer></script>

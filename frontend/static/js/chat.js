@@ -151,6 +151,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Priority to 'Chat', then standard fallback arrays
         const messages = Array.isArray(data) ? data : (data.Chat || data.messages || data.data || []);
         renderMessages(messages);
+        
+        // Hide/Show stranger danger banner dynamically based on contact saved status
+        if (strangerBanner) {
+          if (data.is_saved_contact === true) {
+            strangerBanner.classList.add('hidden');
+          } else if (!isContact && roomId && roomId !== 'global') {
+            strangerBanner.classList.remove('hidden');
+          }
+        }
       }
     } catch (error) {
       console.error("Error fetching history:", error);
@@ -530,21 +539,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Send via Button
   sendBtn.addEventListener('click', () => {
-    sendMessage(msgInput.value);
+    const text = msgInput.value.trim();
+    if (text.length > 0) {
+      sendMessage(msgInput.value);
+    } else {
+      showToast('Voice note recording starting...');
+    }
   });
 
   // Send via Enter Key
   msgInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !sendBtn.disabled) {
-      sendMessage(msgInput.value);
+    if (e.key === 'Enter') {
+      const text = msgInput.value.trim();
+      if (text.length > 0) {
+        sendMessage(msgInput.value);
+      }
     }
   });
 
   // Toggle Send Button State
   function checkInput() {
-    sendBtn.disabled = msgInput.value.trim().length === 0;
+    const hasText = msgInput.value.trim().length > 0;
+    const sendIcon = document.getElementById('sendBtnIcon');
+    if (sendIcon) {
+      if (hasText) {
+        sendIcon.className = 'ti ti-send';
+      } else {
+        sendIcon.className = 'ti ti-microphone';
+      }
+    }
+    sendBtn.disabled = false; // Always enabled and gold like the design image
   }
   msgInput.addEventListener('input', checkInput);
+  checkInput();
 
   // 4. Media Integration & Attachment Menu
   const attachMenu = document.getElementById('attachMenu');
@@ -703,6 +730,18 @@ document.addEventListener('DOMContentLoaded', () => {
           if (payload.room_id && payload.room_id !== roomId) {
             authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
           } else {
+            const mockMsg = {
+              _id: payload.message_id || 'temp_' + Date.now(),
+              sender_id: payload.sender_id,
+              content: payload.content,
+              message_type: payload.message_type || 'text',
+              timestamp: new Date().toISOString(),
+              is_mine: payload.event === 'new_message_sent'
+            };
+            
+            if (!document.querySelector(`.bubble[data-id="${mockMsg._id}"]`)) {
+              renderMessages([mockMsg]);
+            }
             fetchHistory();
           }
         }
@@ -1128,6 +1167,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('msgInput').focus();
+  }
+
+  // Prototype Call Flow Click Listener
+  const voiceCallBtn = document.getElementById('voiceCallBtn');
+  if (voiceCallBtn) {
+    voiceCallBtn.addEventListener('click', () => {
+      window.location.href = `active_call.html?room_id=${roomId}&mode=caller`;
+    });
+  }
+
+  const videoCallBtn = document.getElementById('videoCallBtn');
+  if (videoCallBtn) {
+    videoCallBtn.addEventListener('click', () => {
+      window.location.href = `active_call.html?room_id=${roomId}&mode=caller`;
+    });
   }
 
 });

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Hamnasheen - Active Call</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+  <div class="hn-root">
+    <div class="phone">
+      <!-- Call Screen Container -->
+      <div class="call-screen active" style="flex:1; display:flex; flex-direction:column; position:relative; overflow:hidden;">
+        
+        <!-- Video elements -->
+        <video id="remoteVideo" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1; background: #111;"></video>
+        <video id="localVideo" autoplay playsinline muted style="width: 100px; height: 130px; object-fit: cover; position: absolute; bottom: 130px; right: 20px; z-index: 10; border-radius: 10px; border: 2px solid #FFC700; background: #000;"></video>
+
+        <!-- Background decorative rings -->
+        <div class="call-bg-ring" style="width:500px; height:500px; top:-100px; left:-90px; z-index: 2; opacity: 0.15;"></div>
+        <div class="call-bg-ring" style="width:400px; height:400px; top:-50px; left:-40px; z-index: 2; opacity: 0.15;"></div>
+        <div class="call-bg-ring" style="width:300px; height:300px; top:0px; left:10px; z-index: 2; opacity: 0.15;"></div>
+
+        <!-- Call Header & Body -->
+        <div class="call-body" style="padding-top:40px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index: 2; position: relative;">
+          <div class="call-avatar-ring">
+            <div class="call-avatar-inner">P</div>
+          </div>
+          <p class="call-name">Papa</p>
+          <p class="call-sub" style="letter-spacing:0.08em; color:#444">Hamnasheen • Encrypted</p>
+          <p class="call-timer" id="callTimer">00:00</p>
+          
+          <div class="call-quality">
+            <div class="call-quality-dot"></div>
+            <span class="call-quality-text">Crystal clear · HD Voice</span>
+          </div>
+        </div>
+
+        <!-- Call Controls Row -->
+        <div class="call-controls" style="margin-bottom:10px; z-index: 2; position: relative;">
+          <div class="ctrl-btn">
+            <div class="ctrl-circle" id="muteBtn" onclick="toggleActive(this)"><i class="ti ti-microphone-off"></i></div>
+            <span class="ctrl-label">Mute</span>
+          </div>
+          
+          <div class="ctrl-btn end" id="endCallBtn">
+            <div class="ctrl-circle end-call"><i class="ti ti-phone-off"></i></div>
+            <span class="ctrl-label" style="color:#c0392b">End Call</span>
+          </div>
+          
+          <div class="ctrl-btn">
+            <div class="ctrl-circle" id="speakerBtn" onclick="toggleActive(this)"><i class="ti ti-volume"></i></div>
+            <span class="ctrl-label">Speaker</span>
+          </div>
+          
+          <div class="ctrl-btn">
+            <div class="ctrl-circle" id="videoBtn" onclick="toggleActive(this)"><i class="ti ti-video"></i></div>
+            <span class="ctrl-label">Video</span>
+          </div>
+          
+          <div class="ctrl-btn">
+            <div class="ctrl-circle"><i class="ti ti-message-2"></i></div>
+            <span class="ctrl-label">Message</span>
+          </div>
+          
+          <div class="ctrl-btn">
+            <div class="ctrl-circle"><i class="ti ti-dots"></i></div>
+            <span class="ctrl-label">More</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="static/js/config.js"></script>
+  <script>
+    // Live timer implementation
+    let seconds = 0;
+    const timerElement = document.getElementById('callTimer');
+    setInterval(() => {
+      seconds++;
+      const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const secs = String(seconds % 60).padStart(2, '0');
+      timerElement.textContent = `${mins}:${secs}`;
+    }, 1000);
+
+    // Toggle active state for control buttons
+    function toggleActive(element) {
+      element.classList.toggle('active');
+    }
+
+    // ── WebRTC & Signaling Implementation ──
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || 'demo_room';
+    const token = localStorage.getItem('token');
+    let myUserId = 'demo_user_' + Math.floor(Math.random() * 10000);
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        myUserId = payload.sub || payload.id || payload.user_id || payload.owner_id || myUserId;
+      } catch (e) {
+        console.warn("Could not parse token");
+      }
+    }
+
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    let localStream;
+    let peerConnection;
+
+    const servers = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+      ]
+    };
+
+    // Initialize media devices (getUserMedia)
+    async function startMedia() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+      } catch (err) {
+        console.error("Error accessing media devices:", err);
+        // Fallback to audio only if video fails (e.g. no camera)
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err2) {
+          console.error("Audio access also failed:", err2);
+        }
+      }
+    }
+
+    // Connect WebSocket and setup signaling
+    const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = async () => {
+      console.log("Signaling socket connected.");
+      await startMedia();
+      // Start connection ONLY if caller
+      const mode = urlParams.get('mode');
+      if (mode === 'caller') {
+        console.log("Initiating call as caller.");
+        initiateCall();
+      } else {
+        console.log("Waiting for incoming offer as receiver.");
+      }
+    };
+
+    ws.onmessage = async (event) => {
+      const data = JSON.parse(event.data);
+      if (data.offer) {
+        await handleOffer(data.offer);
+      } else if (data.answer) {
+        await handleAnswer(data.answer);
+      } else if (data.iceCandidate) {
+        await handleNewIceCandidate(data.iceCandidate);
+      }
+    };
+
+    async function createPeerConnection() {
+      peerConnection = new RTCPeerConnection(servers);
+      
+      // Add local stream tracks to PeerConnection
+      if (localStream) {
+        localStream.getTracks().forEach(track => {
+          peerConnection.addTrack(track, localStream);
+        });
+      }
+
+      // Remote stream track added
+      peerConnection.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          remoteVideo.srcObject = event.streams[0];
+        }
+      };
+
+      // Candidate gathered, send to signaling channel
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          ws.send(JSON.stringify({ iceCandidate: event.candidate }));
+        }
+      };
+    }
+
+    async function initiateCall() {
+      await createPeerConnection();
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      ws.send(JSON.stringify({ offer: offer }));
+    }
+
+    async function handleOffer(offer) {
+      if (!peerConnection) {
+        await createPeerConnection();
+      }
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      ws.send(JSON.stringify({ answer: answer }));
+    }
+
+    async function handleAnswer(answer) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    }
+
+    async function handleNewIceCandidate(candidate) {
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error("Error adding ice candidate:", e);
+      }
+    }
+
+    // End call: stop stream tracks and close peer connection
+    function endCall() {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      if (peerConnection) {
+        peerConnection.close();
+      }
+      if (ws) {
+        ws.close();
+      }
+      const backRoomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || '';
+      window.location.href = `chat.html?room_id=${backRoomId}`;
+    }
+
+    document.getElementById('endCallBtn').onclick = endCall;
+  </script>
+</body>
+</html>

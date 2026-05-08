@@ -102,27 +102,35 @@ async def search_conversation_db(db, user_id: str, fetch_archived: bool = False)
         if not other_user_id and participant_ids:
             other_user_id = user_id
             
-        contact_name = "Unknown User"
+        display_name = "Unknown User"
+        is_contact = False
+        other_email = "Unknown"
         
         if other_user_id:
             try:
                 other_user = await db.users.find_one({"_id": ObjectId(other_user_id)})
                 if other_user:
                     other_email = other_user.get("email")
-                    saved_contact = None
+                    contact_doc = None
                     if other_email:
-                        saved_contact = await db.contacts.find_one({"owner_id": user_id, "contact_email": other_email})
+                        # STRICT DIRECTIONAL LOOKUP: owner_id is the requester
+                        contact_doc = await db.contacts.find_one({
+                            "owner_id": user_id, 
+                            "contact_email": other_email
+                        })
                     
-                    if saved_contact and saved_contact.get("contact_nickname"):
-                        contact_name = saved_contact.get("contact_nickname")
+                    if contact_doc:
+                        # They are a saved contact
+                        is_contact = True
+                        # Strictly use 'contact_nickname' from the schema
+                        display_name = contact_doc.get("contact_nickname") or other_email
                     else:
-                        if other_email:
-                            contact_name = other_email.split('@')[0]
-                        else:
-                            contact_name = other_user.get("name") or "Unknown User"
+                        # They are a STRANGER to the current user
+                        is_contact = False
+                        display_name = other_email
 
                     # Skip blocked contacts — they must not appear on Home
-                    if saved_contact and saved_contact.get("is_blocked", False):
+                    if contact_doc and contact_doc.get("is_blocked", False):
                         continue
             except Exception:
                 pass
@@ -130,22 +138,18 @@ async def search_conversation_db(db, user_id: str, fetch_archived: bool = False)
         is_pinned = user_id in conversation.get("pinned_by", [])
         is_archived = user_id in conversation.get("archived_by", [])
         
-        # Get count from map in O(1) time
         room_id_str = str(conversation["_id"])
         unread_count = unread_map.get(room_id_str, 0)
                 
-        is_contact = saved_contact is not None
-        other_user_email = other_email if other_email else "Unknown"
-
         formatted_list.append({
             "room_id": room_id_str,
-            "contact_name": contact_name,
-            "other_user_email": other_user_email,
+            "display_name": display_name,
+            "other_user_email": other_email,
             "is_contact": is_contact,
             "last_message": str(conversation.get("last_message", "No messages yet")),
             "is_pinned": is_pinned,
             "is_archived": is_archived,
-            "is_blocked": False,  # Only non-blocked reach this point
+            "is_blocked": False,
             "unread_count": unread_count
         })
         

@@ -33,6 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Context Menu Setup
   const roomContextMenu = document.getElementById('roomContextMenu');
+  const headerMenuBtn = document.getElementById('headerMenuBtn');
+  const headerContextMenu = document.getElementById('headerContextMenu');
+  const headerBlockedBtn = document.getElementById('headerBlockedBtn');
+  const headerArchivedBtn = document.getElementById('headerArchivedBtn');
   let selectedRoomId = null;
   let unreadArchivedCount = 0; // Tracks aggregate unread count for archived chats
 
@@ -40,7 +44,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (roomContextMenu && !roomContextMenu.contains(e.target)) {
       roomContextMenu.style.display = 'none';
     }
+    if (headerContextMenu && !headerContextMenu.contains(e.target)) {
+      headerContextMenu.style.display = 'none';
+    }
   });
+
+  if (headerMenuBtn && headerContextMenu) {
+    headerMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      
+      if (roomContextMenu) roomContextMenu.style.display = 'none';
+
+      headerContextMenu.style.display = headerContextMenu.style.display === 'flex' ? 'none' : 'flex';
+    });
+
+    if (headerBlockedBtn) {
+      headerBlockedBtn.addEventListener('click', () => {
+        window.location.href = 'blocked_users.html';
+      });
+    }
+
+    if (headerArchivedBtn) {
+      headerArchivedBtn.addEventListener('click', () => {
+        if (archivedSlider) {
+          archivedSlider.classList.add('active');
+          fetchArchivedChats();
+        }
+      });
+    }
+  }
 
   document.querySelectorAll('#roomContextMenu .ctx-item').forEach(item => {
     item.addEventListener('click', async (e) => {
@@ -50,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!selectedRoomId) return;
 
       try {
-      if (action === 'pin' || action === 'unpin') {
+        if (action === 'pin' || action === 'unpin') {
           await authFetch(`${BASE_URL}/conversations/pin/${selectedRoomId}`, { method: 'PATCH' });
         } else if (action === 'archive' || action === 'unarchive') {
           // Optimistic UI Update: Instantly hide the card
@@ -105,9 +137,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── RENAME MODAL LOGIC ───────────────────────────────────────────────────
-  const renameModal  = document.getElementById('renameModal');
-  const renameInput  = document.getElementById('renameInput');
-  const saveRenameBtn   = document.getElementById('saveRenameBtn');
+  const renameModal = document.getElementById('renameModal');
+  const renameInput = document.getElementById('renameInput');
+  const saveRenameBtn = document.getElementById('saveRenameBtn');
   const cancelRenameBtn = document.getElementById('cancelRenameBtn');
 
   function closeRenameModal() {
@@ -170,8 +202,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── BLOCK MODAL LOGIC ────────────────────────────────────────────────────
-  const blockModal      = document.getElementById('blockModal');
-  const cancelBlockBtn  = document.getElementById('cancelBlockBtn');
+  const blockModal = document.getElementById('blockModal');
+  const cancelBlockBtn = document.getElementById('cancelBlockBtn');
   const confirmBlockBtn = document.getElementById('confirmBlockBtn');
 
   function closeBlockModal() {
@@ -251,100 +283,48 @@ document.addEventListener('DOMContentLoaded', () => {
     const listEl = isArchivedView ? archivedList : chatsList;
     listEl.innerHTML = '';
 
-    if (!isArchivedView) {
-      const archivedBtn = document.createElement('div');
-      archivedBtn.className = 'card-item';
-      archivedBtn.style.background = 'rgba(255, 255, 255, 0.05)';
-      archivedBtn.innerHTML = `
-        <div class="avatar" style="background: transparent; color: #fff;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
-        </div>
-        <div class="info" style="flex:1; display:flex; align-items:center;">
-          <div class="name-text">Archived</div>
-        </div>
-        ${unreadArchivedCount > 0 ? `<div class="unread-badge" style="background: #ff9800; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold; margin-left: auto;">${unreadArchivedCount}</div>` : ''}
-      `;
-      archivedBtn.addEventListener('click', () => {
-        archivedSlider.classList.add('active');
-        fetchArchivedChats();
-      });
-      listEl.appendChild(archivedBtn);
-    }
-
     chats.forEach((chat, index) => {
       const roomId = chat.room_id || 'Unknown';
-      const name = chat.contact_name || chat.name || roomId;
+      const name = chat.display_name || roomId;
       const initial = name.charAt(0).toUpperCase();
 
       let badges = '';
       if (chat.is_pinned) {
-        badges += `<svg class="badge-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>`;
+        badges += `<svg class="badge-icon" fill="currentColor" viewBox="0 0 24 24" style="width: 14px; height: 14px; color: #FFC700; margin-left: 4px; display: inline-block; vertical-align: middle;"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>`;
       }
       if (chat.is_archived) {
-        badges += `<svg class="badge-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>`;
+        badges += `<svg class="badge-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 14px; height: 14px; color: #FFC700; margin-left: 4px; display: inline-block; vertical-align: middle;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>`;
       }
 
-      let unreadBadge = chat.unread_count > 0 ? `<div class="unread-badge" style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; font-weight: bold; margin-left: auto;">${chat.unread_count}</div>` : '';
+      let unreadBadge = chat.unread_count > 0 ? `<div class="unread-badge">${chat.unread_count}</div>` : '';
       const card = document.createElement('div');
-      card.className = 'card-item';
+      card.className = 'chat-item card-item';
       card.dataset.roomId = roomId;
       card.dataset.isPinned = chat.is_pinned ? 'true' : 'false';
       card.dataset.isBlocked = chat.is_blocked ? 'true' : 'false'; // persist block state
       card.style.animationDelay = `${index * 0.05}s`;
       card.innerHTML = `
-        <div class="avatar">${initial}</div>
-        <div class="info" style="flex:1;">
-          <div class="name-text">${name} ${badges}</div>
-          <div class="sub-text">${chat.last_message || 'Tap to chat'}</div>
+        <div class="avatar">
+          ${initial}
+          ${unreadBadge}
         </div>
-        ${unreadBadge}
+        <div class="chat-info" style="flex:1;">
+          <div class="chat-top">
+            <span class="chat-name name-text">${name} ${badges}</span>
+            <span class="chat-time gold">${chat.last_message_time || ''}</span>
+          </div>
+          <div class="chat-preview sub-text">${chat.last_message || 'Tap to chat'}</div>
+        </div>
+        <div class="chat-options-btn" style="padding: 5px; color: #555; cursor: pointer;"><i class="ti ti-dots-vertical"></i></div>
       `;
       card.addEventListener('click', () => {
         window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(name)}&is_contact=${chat.is_contact}&email=${encodeURIComponent(chat.other_user_email || '')}`;
       });
 
-      // Long press / right click logic
-      card.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        selectedRoomId = roomId;
-
-        // Dynamically update Pin/Unpin action
-        const pinItem = roomContextMenu.querySelector('.ctx-item[data-action="pin"], .ctx-item[data-action="unpin"]');
-        const isPinned = card.dataset.isPinned === 'true';
-        if (pinItem) {
-          pinItem.setAttribute('data-action', isPinned ? 'unpin' : 'pin');
-          pinItem.querySelector('span').textContent = isPinned ? 'Unpin' : 'Pin';
-        }
-
-        // Dynamically update context menu action
-        const archiveItem = roomContextMenu.querySelector('.ctx-item[data-action="archive"], .ctx-item[data-action="unarchive"]');
-        if (archiveItem) {
-          archiveItem.setAttribute('data-action', isArchivedView ? 'unarchive' : 'archive');
-          archiveItem.querySelector('span').textContent = isArchivedView ? 'Unarchive' : 'Archive';
-        }
-
-        // Dynamically toggle Block / Unblock based on card's current state
-        const isBlocked = card.dataset.isBlocked === 'true';
-        const ctxBlockItem   = document.getElementById('ctxBlockItem');
-        const ctxUnblockItem = document.getElementById('ctxUnblockItem');
-        if (ctxBlockItem)   ctxBlockItem.style.display   = isBlocked ? 'none' : 'flex';
-        if (ctxUnblockItem) ctxUnblockItem.style.display = isBlocked ? 'flex' : 'none';
-
-        roomContextMenu.style.display = 'flex';
-
-        // Prevent menu from going off-screen
-        let posX = e.pageX;
-        let posY = e.pageY;
-        if (posX + 180 > window.innerWidth) posX = window.innerWidth - 190;
-        if (posY + 160 > window.innerHeight) posY = window.innerHeight - 170;
-
-        roomContextMenu.style.left = `${posX}px`;
-        roomContextMenu.style.top = `${posY}px`;
-      });
-
-      let pressTimer;
-      card.addEventListener('touchstart', (e) => {
-        pressTimer = window.setTimeout(() => {
+      const optionsBtn = card.querySelector('.chat-options-btn');
+      if (optionsBtn) {
+        optionsBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
           selectedRoomId = roomId;
 
           // Dynamically update Pin/Unpin action
@@ -364,23 +344,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Dynamically toggle Block / Unblock based on card's current state
           const isBlocked = card.dataset.isBlocked === 'true';
-          const ctxBlockItem   = document.getElementById('ctxBlockItem');
+          const ctxBlockItem = document.getElementById('ctxBlockItem');
           const ctxUnblockItem = document.getElementById('ctxUnblockItem');
-          if (ctxBlockItem)   ctxBlockItem.style.display   = isBlocked ? 'none' : 'flex';
+          if (ctxBlockItem) ctxBlockItem.style.display = isBlocked ? 'none' : 'flex';
           if (ctxUnblockItem) ctxUnblockItem.style.display = isBlocked ? 'flex' : 'none';
 
           roomContextMenu.style.display = 'flex';
-          roomContextMenu.style.left = `${e.touches[0].pageX}px`;
-          roomContextMenu.style.top = `${e.touches[0].pageY}px`;
-        }, 600); // 600ms long press
-      });
-      card.addEventListener('touchend', () => {
-        clearTimeout(pressTimer);
-      });
-      card.addEventListener('touchmove', () => {
-        clearTimeout(pressTimer);
-      });
 
+          // Position context menu
+          const rect = optionsBtn.getBoundingClientRect();
+          let posX = rect.left + window.scrollX;
+          let posY = rect.bottom + window.scrollY;
+
+          if (posX + 180 > window.innerWidth) posX = window.innerWidth - 190;
+          if (posY + 160 > window.innerHeight) posY = window.innerHeight - 170;
+
+          roomContextMenu.style.left = `${posX}px`;
+          roomContextMenu.style.top = `${posY}px`;
+        });
+      }
       listEl.appendChild(card);
     });
   }

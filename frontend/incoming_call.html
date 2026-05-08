@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Hamnasheen - Incoming Call</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+  <div class="hn-root">
+    <div class="phone">
+      <!-- Call Screen Container -->
+      <div class="call-screen active" style="flex:1; display:flex; flex-direction:column; position:relative; overflow:hidden;">
+        
+        <!-- Background decorative rings -->
+        <div class="call-bg-ring" style="width:500px; height:500px; top:-100px; left:-90px"></div>
+        <div class="call-bg-ring" style="width:380px; height:380px; top:-40px; left:-30px"></div>
+
+        <!-- Call Content -->
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:2; padding-top:40px">
+          <p style="font-size:11px; color:#555; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:8px">Hamnasheen • Incoming Call</p>
+          
+          <div class="call-avatar-ring" style="width:120px; height:120px">
+            <div class="call-avatar-inner" style="width:104px; height:104px; font-size:40px">P</div>
+          </div>
+          
+          <p style="font-family:'Playfair Display',serif; font-size:28px; font-weight:700; color:#fff; margin-top:12px">Papa</p>
+          <p style="font-size:12px; color:#555">Voice Call</p>
+
+          <!-- Actions Row -->
+          <div style="width:100%; display:flex; justify-content:space-around; align-items:center; padding:24px 40px 0">
+            <!-- Decline -->
+            <div id="declineCallBtn" style="display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer;">
+              <div style="width:60px; height:60px; border-radius:50%; background:#c0392b; display:flex; align-items:center; justify-content:center">
+                <i class="ti ti-phone-off" style="font-size:24px; color:#fff"></i>
+              </div>
+              <span style="font-size:11px; color:#555">Decline</span>
+            </div>
+            
+            <!-- Mid buttons -->
+            <div style="display:flex; flex-direction:column; align-items:center; gap:6px">
+              <div style="background:rgba(255,199,0,0.08); border:1px solid rgba(255,199,0,0.2); border-radius:20px; padding:6px 16px; margin-bottom:4px">
+                <span style="font-size:10px; color:#FFC700; letter-spacing:0.08em">REMIND ME</span>
+              </div>
+              <div style="background:rgba(255,199,0,0.08); border:1px solid rgba(255,199,0,0.2); border-radius:20px; padding:6px 16px">
+                <span style="font-size:10px; color:#FFC700; letter-spacing:0.08em">MESSAGE</span>
+              </div>
+            </div>
+            
+            <!-- Accept -->
+            <div id="acceptCallBtn" style="display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer;">
+              <div style="width:60px; height:60px; border-radius:50%; background:#25D366; display:flex; align-items:center; justify-content:center">
+                <i class="ti ti-phone" style="font-size:24px; color:#fff"></i>
+              </div>
+              <span style="font-size:11px; color:#555">Accept</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('declineCallBtn').onclick = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || '';
+      window.location.href = `chat.html?room_id=${roomId}`;
+    };
+
+    document.getElementById('acceptCallBtn').onclick = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || '';
+      window.location.href = `active_call.html?room_id=${roomId}`;
+    };
+  </script>
+</body>
+</html>
