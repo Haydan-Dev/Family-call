@@ -672,6 +672,18 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('WebSocket Msg:', event.data);
       try {
         const payload = JSON.parse(event.data);
+        
+        // ── STRICT SIGNALING GATEWAYS ──
+        if (payload.event === 'incoming_call') {
+          showIncomingCall(payload.caller_name || 'Unknown', payload.room_id, payload.call_type || 'video');
+          return; // Stop execution
+        }
+        
+        if (payload.event === 'call_accepted' || payload.event === 'call_rejected') {
+          console.log("Call signaling received:", payload.event);
+          return; // Stop execution
+        }
+
         if (payload.event === 'MESSAGE_EDITED') {
           const bubble = document.querySelector(`.bubble[data-id="${payload.message_id}"]`);
           if (bubble && !bubble.classList.contains('msg-deleted')) {
@@ -726,6 +738,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           return;
         }
+
+        // ── STRICT CHAT MESSAGE RENDERER ──
         if (payload.event === 'new_message' || payload.event === 'new_message_sent') {
           if (payload.room_id && payload.room_id !== roomId) {
             authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
@@ -1169,18 +1183,84 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('msgInput').focus();
   }
 
+  // ── Incoming Call Overlay Implementation ──
+  function showIncomingCall(callerName, roomID, callType) {
+    const overlay = document.getElementById('incomingCallOverlay');
+    const nameEl = document.getElementById('incomingCallName');
+    const avatarEl = document.getElementById('incomingCallAvatar');
+    const typeEl = document.getElementById('incomingCallType');
+    
+    if (overlay && nameEl && avatarEl && typeEl) {
+      nameEl.textContent = callerName;
+      avatarEl.textContent = callerName.charAt(0).toUpperCase();
+      typeEl.textContent = callType === 'audio' ? 'Voice Call' : 'Video Call';
+      overlay.style.display = 'flex';
+      
+      const declineBtn = document.getElementById('declineCallOverlayBtn');
+      if (declineBtn) {
+        declineBtn.onclick = () => {
+          overlay.style.display = 'none';
+        };
+      }
+      
+      const acceptBtn = document.getElementById('acceptCallOverlayBtn');
+      if (acceptBtn) {
+        acceptBtn.onclick = () => {
+          overlay.style.display = 'none';
+          if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+            window.ws.send(JSON.stringify({
+              event: "call_accepted",
+              room_id: roomID
+            }));
+          }
+          window.location.href = `active_call.html?room_id=${roomID}&mode=receiver&call_type=${callType}&name=${encodeURIComponent(callerName)}`;
+        };
+      }
+    }
+  }
+
   // Prototype Call Flow Click Listener
   const voiceCallBtn = document.getElementById('voiceCallBtn');
   if (voiceCallBtn) {
     voiceCallBtn.addEventListener('click', () => {
-      window.location.href = `active_call.html?room_id=${roomId}&mode=caller`;
+      const recipientName = document.getElementById('roomTitle')?.textContent || 'Family Member';
+      const myName = localStorage.getItem('user_email')?.split('@')[0] || 'Family Member';
+      
+      const signalMsg = {
+        event: "incoming_call",
+        room_id: roomId,
+        caller_name: myName,
+        call_type: 'audio'
+      };
+      if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+        window.ws.send(JSON.stringify(signalMsg));
+      }
+      
+      setTimeout(() => {
+        window.location.href = `active_call.html?room_id=${roomId}&mode=caller&call_type=audio&name=${encodeURIComponent(recipientName)}&state=ringing`;
+      }, 200);
     });
   }
 
   const videoCallBtn = document.getElementById('videoCallBtn');
   if (videoCallBtn) {
     videoCallBtn.addEventListener('click', () => {
-      window.location.href = `active_call.html?room_id=${roomId}&mode=caller`;
+      const recipientName = document.getElementById('roomTitle')?.textContent || 'Family Member';
+      const myName = localStorage.getItem('user_email')?.split('@')[0] || 'Family Member';
+      
+      const signalMsg = {
+        event: "incoming_call",
+        room_id: roomId,
+        caller_name: myName,
+        call_type: 'video'
+      };
+      if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+        window.ws.send(JSON.stringify(signalMsg));
+      }
+      
+      setTimeout(() => {
+        window.location.href = `active_call.html?room_id=${roomId}&mode=caller&call_type=video&name=${encodeURIComponent(recipientName)}&state=ringing`;
+      }, 200);
     });
   }
 

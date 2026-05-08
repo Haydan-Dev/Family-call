@@ -81,6 +81,7 @@
     let seconds = 0;
     const timerElement = document.getElementById('callTimer');
     setInterval(() => {
+      if (timerElement.textContent === "Ringing...") return;
       seconds++;
       const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
       const secs = String(seconds % 60).padStart(2, '0');
@@ -95,6 +96,16 @@
     // ── WebRTC & Signaling Implementation ──
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || 'demo_room';
+    
+    // Dynamic Identity Update
+    const nameParam = urlParams.get('name');
+    if (nameParam) {
+      const callNameEl = document.querySelector('.call-name');
+      if (callNameEl) {
+        callNameEl.textContent = decodeURIComponent(nameParam);
+      }
+    }
+
     const token = localStorage.getItem('token');
     let myUserId = 'demo_user_' + Math.floor(Math.random() * 10000);
     if (token) {
@@ -110,27 +121,64 @@
     const remoteVideo = document.getElementById('remoteVideo');
     let localStream;
     let peerConnection;
+    let pendingOffer = null;
+    let remoteIceCandidatesQueue = [];
 
     const servers = {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
       ]
     };
 
     // Initialize media devices (getUserMedia)
     async function startMedia() {
+      const callType = urlParams.get('call_type') || 'video';
+      
+      // UI Toggle if call is audio-only
+      if (callType === 'audio') {
+        localVideo.style.display = 'none';
+        remoteVideo.style.display = 'none';
+      }
+
+      const constraints = {
+        video: callType === 'video',
+        audio: true
+      };
+
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        localVideo.srcObject = localStream;
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (callType === 'video') {
+          localVideo.srcObject = localStream;
+        }
       } catch (err) {
         console.error("Error accessing media devices:", err);
         // Fallback to audio only if video fails (e.g. no camera)
-        try {
-          localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (err2) {
-          console.error("Audio access also failed:", err2);
+        if (callType === 'video') {
+          try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            localVideo.style.display = 'none';
+            remoteVideo.style.display = 'none';
+          } catch (err2) {
+            console.error("Audio access also failed:", err2);
+          }
         }
       }
+
+      // Resolve pendingOffer queue once localStream is initialized
+      if (localStream && pendingOffer) {
+        console.log("Resolving stored pendingOffer after startMedia completed...");
+        await handleOffer(pendingOffer);
+        pendingOffer = null;
+      }
+
+      // Unblock browser autoplay blocking
+      document.body.addEventListener('click', () => {
+        if (remoteVideo.paused && remoteVideo.srcObject) {
+          remoteVideo.play().catch(e => console.log("Autoplay unblock failed:", e));
+        }
+      }, { once: true });
     }
 
     // Connect WebSocket and setup signaling
@@ -140,11 +188,18 @@
     ws.onopen = async () => {
       console.log("Signaling socket connected.");
       await startMedia();
-      // Start connection ONLY if caller
+      // Start connection ONLY if caller and not waiting for ringing acceptance
       const mode = urlParams.get('mode');
+      const state = urlParams.get('state');
       if (mode === 'caller') {
-        console.log("Initiating call as caller.");
-        initiateCall();
+        if (state === 'ringing') {
+          console.log("Waiting in ringing state for receiver to accept...");
+          const timerEl = document.getElementById('callTimer');
+          if (timerEl) timerEl.textContent = "Ringing...";
+        } else {
+          console.log("Initiating call as caller.");
+          initiateCall();
+        }
       } else {
         console.log("Waiting for incoming offer as receiver.");
       }
@@ -152,7 +207,12 @@
 
     ws.onmessage = async (event) => {
       const data = JSON.parse(event.data);
-      if (data.offer) {
+      if (data.event === 'call_accepted') {
+        console.log("Receiver accepted call. Initiating WebRTC handshakes...");
+        const timerEl = document.getElementById('callTimer');
+        if (timerEl) timerEl.textContent = "00:00";
+        initiateCall();
+      } else if (data.offer) {
         await handleOffer(data.offer);
       } else if (data.answer) {
         await handleAnswer(data.answer);
@@ -162,17 +222,22 @@
     };
 
     async function createPeerConnection() {
+      console.log("Creating RTCPeerConnection...");
       peerConnection = new RTCPeerConnection(servers);
       
-      // Add local stream tracks to PeerConnection
+      // Add local stream tracks to PeerConnection strictly before offer/answer
       if (localStream) {
+        console.log("Adding local tracks to PeerConnection:", localStream.getTracks());
         localStream.getTracks().forEach(track => {
           peerConnection.addTrack(track, localStream);
         });
+      } else {
+        console.warn("No localStream available to add tracks!");
       }
 
       // Remote stream track added
       peerConnection.ontrack = (event) => {
+        console.log('Remote stream received:', event.streams[0]);
         if (event.streams && event.streams[0]) {
           remoteVideo.srcObject = event.streams[0];
         }
@@ -181,37 +246,72 @@
       // Candidate gathered, send to signaling channel
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
+          console.log("Generated local ICE candidate:", event.candidate);
           ws.send(JSON.stringify({ iceCandidate: event.candidate }));
         }
       };
     }
 
     async function initiateCall() {
+      console.log("Initiating call offer...");
       await createPeerConnection();
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
+      console.log("Local offer set and sending...");
       ws.send(JSON.stringify({ offer: offer }));
     }
 
     async function handleOffer(offer) {
+      if (!localStream) {
+        console.log("localStream is not initialized yet. Storing offer in pendingOffer...");
+        pendingOffer = offer;
+        return;
+      }
+      console.log("Received remote offer, processing...");
       if (!peerConnection) {
         await createPeerConnection();
       }
       await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      await processQueuedIceCandidates(); // Process early ICE candidates
+      
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
+      console.log("Local answer set and sending...");
       ws.send(JSON.stringify({ answer: answer }));
     }
 
     async function handleAnswer(answer) {
+      console.log("Received remote answer, processing...");
       await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      await processQueuedIceCandidates(); // Process early ICE candidates
     }
 
     async function handleNewIceCandidate(candidate) {
       try {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log("Added remote ICE candidate successfully.");
+        } else {
+          console.log("Remote description not set yet. Queuing ICE candidate...");
+          remoteIceCandidatesQueue.push(candidate);
+        }
       } catch (e) {
-        console.error("Error adding ice candidate:", e);
+        console.error("Error adding remote ICE candidate:", e);
+      }
+    }
+
+    async function processQueuedIceCandidates() {
+      if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
+        console.log(`Processing ${remoteIceCandidatesQueue.length} queued ICE candidates...`);
+        for (const candidate of remoteIceCandidatesQueue) {
+          try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log("Processed queued ICE candidate successfully.");
+          } catch (e) {
+            console.error("Error processing queued ICE candidate:", e);
+          }
+        }
+        remoteIceCandidatesQueue = [];
       }
     }
 

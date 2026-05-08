@@ -68,6 +68,13 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
             data = await websocket.receive_text()
             try:
                 msg_dict = json.loads(data)
+                
+                # ── STRICT SIGNALING GATEWAY ──
+                if msg_dict.get("event") in ("incoming_call", "call_accepted", "call_rejected"):
+                    if recipient_id and recipient_id != user_id:
+                        await manager.send_personal_message(msg_dict, recipient_id)
+                    continue
+
                 full_message = Message(
                     conversation_id=room_id,
                     sender_id=user_id,
