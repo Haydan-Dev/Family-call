@@ -35,8 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- STRANGER DANGER BANNER LOGIC ---
   const strangerBanner = document.getElementById('strangerBanner');
-  const isContact      = urlParams.get('is_contact') === 'true';
-  const otherEmail     = urlParams.get('email');
+  const isContact = urlParams.get('is_contact') === 'true';
+  const otherEmail = urlParams.get('email');
 
   if (strangerBanner && !isContact && roomId && roomId !== 'global') {
     strangerBanner.classList.remove('hidden');
@@ -46,18 +46,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  const addContactBtn    = document.getElementById('addContactBtn');
+  const addContactBtn = document.getElementById('addContactBtn');
   const blockStrangerBtn = document.getElementById('blockStrangerBtn');
-  const reportSpamBtn    = document.getElementById('reportSpamBtn');
+  const reportSpamBtn = document.getElementById('reportSpamBtn');
 
   if (addContactBtn) {
     addContactBtn.addEventListener('click', async () => {
       try {
         const res = await authFetch(`${BASE_URL}/contacts/save`, {
           method: 'POST',
-          body: JSON.stringify({ 
-            contact_email: otherEmail, 
-            contact_nickname: otherEmail.split('@')[0] 
+          body: JSON.stringify({
+            contact_email: otherEmail,
+            contact_nickname: otherEmail.split('@')[0]
           })
         });
         if (res.ok) {
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Priority to 'Chat', then standard fallback arrays
         const messages = Array.isArray(data) ? data : (data.Chat || data.messages || data.data || []);
         renderMessages(messages);
-        
+
         // Hide/Show stranger danger banner dynamically based on contact saved status
         if (strangerBanner) {
           if (data.is_saved_contact === true) {
@@ -672,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('WebSocket Msg:', event.data);
       try {
         const payload = JSON.parse(event.data);
-        
+
         if (payload.event === 'incoming_call') {
           showIncomingCall(payload.caller_name || 'Unknown', payload.room_id, payload.call_type || 'video');
           return; // Stop execution
@@ -686,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           return; // Stop execution
         }
-        
+
         if (payload.event === 'call_accepted' || payload.event === 'call_rejected') {
           console.log("Call signaling received:", payload.event);
           return; // Stop execution
@@ -760,7 +760,7 @@ document.addEventListener('DOMContentLoaded', () => {
               timestamp: new Date().toISOString(),
               is_mine: payload.event === 'new_message_sent'
             };
-            
+
             if (!document.querySelector(`.bubble[data-id="${mockMsg._id}"]`)) {
               renderMessages([mockMsg]);
             }
@@ -1197,13 +1197,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const nameEl = document.getElementById('incomingCallName');
     const avatarEl = document.getElementById('incomingCallAvatar');
     const typeEl = document.getElementById('incomingCallType');
-    
+
     if (overlay && nameEl && avatarEl && typeEl) {
       nameEl.textContent = callerName;
       avatarEl.textContent = callerName.charAt(0).toUpperCase();
       typeEl.textContent = callType === 'audio' ? 'Voice Call' : 'Video Call';
       overlay.style.display = 'flex';
-      
+
       const declineBtn = document.getElementById('declineCallOverlayBtn');
       if (declineBtn) {
         declineBtn.onclick = () => {
@@ -1216,7 +1216,7 @@ document.addEventListener('DOMContentLoaded', () => {
           overlay.style.display = 'none';
         };
       }
-      
+
       const acceptBtn = document.getElementById('acceptCallOverlayBtn');
       if (acceptBtn) {
         acceptBtn.onclick = () => {
@@ -1239,7 +1239,7 @@ document.addEventListener('DOMContentLoaded', () => {
     voiceCallBtn.addEventListener('click', () => {
       const recipientName = document.getElementById('roomTitle')?.textContent || 'Family Member';
       const myName = localStorage.getItem('user_email')?.split('@')[0] || 'Family Member';
-      
+
       const signalMsg = {
         event: "incoming_call",
         room_id: roomId,
@@ -1249,7 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         window.ws.send(JSON.stringify(signalMsg));
       }
-      
+
       setTimeout(() => {
         window.location.href = `active_call.html?room_id=${roomId}&mode=caller&call_type=audio&name=${encodeURIComponent(recipientName)}&state=ringing`;
       }, 200);
@@ -1261,7 +1261,7 @@ document.addEventListener('DOMContentLoaded', () => {
     videoCallBtn.addEventListener('click', () => {
       const recipientName = document.getElementById('roomTitle')?.textContent || 'Family Member';
       const myName = localStorage.getItem('user_email')?.split('@')[0] || 'Family Member';
-      
+
       const signalMsg = {
         event: "incoming_call",
         room_id: roomId,
@@ -1271,7 +1271,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         window.ws.send(JSON.stringify(signalMsg));
       }
-      
+
       setTimeout(() => {
         window.location.href = `active_call.html?room_id=${roomId}&mode=caller&call_type=video&name=${encodeURIComponent(recipientName)}&state=ringing`;
       }, 200);

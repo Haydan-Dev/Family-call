@@ -1,79 +1,364 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Hamnasheen - Active Call</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
-  <link rel="stylesheet" href="static/css/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Family Call – Active Call</title>
+  <style>
+    /* ─── Reset & Base ──────────────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0a0f;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    /* ─── 1. CALL STAGE (full-screen container) ─────────────── */
+    .call-stage {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      /* 100dvh = dynamic viewport height, handles mobile browser chrome */
+      background: #0a0a0f;
+    }
+
+    /* ─── 1a. REMOTE VIDEO — Base Layer ─────────────────────── */
+    #remoteVideo {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #0a0a0f;
+      filter: brightness(0.95);
+    }
+
+    /* Bottom gradient scrim — ensures controls are always legible */
+    .call-stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top,
+          rgba(0, 0, 0, 0.58) 0%,
+          rgba(0, 0, 0, 0.15) 30%,
+          transparent 56%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* ─── 2. LOCAL VIDEO — Picture-in-Picture ───────────────── */
+    .pip-wrapper {
+      position: absolute;
+      bottom: clamp(96px, 14vh, 132px);
+      /* floats above controls bar */
+      right: clamp(12px, 3vw, 24px);
+      z-index: 10;
+
+      width: clamp(96px, 22vw, 160px);
+      aspect-ratio: 3 / 4;
+
+      border-radius: 16px;
+      overflow: hidden;
+
+      /* Makes the PiP "pop" off the remote video */
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.55),
+        0 2px 8px rgba(0, 0, 0, 0.40),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+
+      animation: pip-enter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    @keyframes pip-enter {
+      from {
+        opacity: 0;
+        transform: scale(0.75) translateY(12px);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    #localVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #1a1a2e;
+      display: block;
+      transform: scaleX(-1);
+      /* Mirror for natural selfie orientation */
+    }
+
+    /* ─── 3. FLOATING CONTROLS BAR ──────────────────────────── */
+    .controls-bar {
+      position: absolute;
+      bottom: clamp(20px, 5vh, 40px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+
+      display: flex;
+      align-items: center;
+      gap: clamp(10px, 2.5vw, 18px);
+      padding: 12px clamp(16px, 4vw, 28px);
+
+      /* Glassmorphism pill */
+      background: rgba(18, 18, 28, 0.65);
+      backdrop-filter: blur(20px) saturate(1.6);
+      -webkit-backdrop-filter: blur(20px) saturate(1.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      box-shadow:
+        0 8px 40px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+      max-width: calc(100vw - 32px);
+      /* Never overflow on tiny screens */
+
+      animation: bar-enter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
+    }
+
+    @keyframes bar-enter {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    /* ─── CONTROL BUTTON — shared base ──────────────────────── */
+    .ctrl-btn {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      width: clamp(52px, 12vw, 62px);
+      height: clamp(52px, 12vw, 62px);
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      outline: none;
+
+      background: rgba(255, 255, 255, 0.13);
+      color: #ffffff;
+
+      transition:
+        background 0.2s ease,
+        transform 0.15s ease,
+        box-shadow 0.2s ease;
+    }
+
+    .ctrl-btn:focus-visible {
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5);
+    }
+
+    .ctrl-btn:hover {
+      background: rgba(255, 255, 255, 0.22);
+      transform: scale(1.07);
+    }
+
+    .ctrl-btn:active {
+      transform: scale(0.93);
+    }
+
+    /* JS toggles these classes to reflect muted/camera-off state */
+    .ctrl-btn.muted,
+    .ctrl-btn.off {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.35);
+    }
+
+    .ctrl-btn svg {
+      width: clamp(22px, 5vw, 26px);
+      height: clamp(22px, 5vw, 26px);
+      flex-shrink: 0;
+      pointer-events: none;
+    }
+
+    /* ─── END CALL — danger theme ────────────────────────────── */
+    #endCallBtn {
+      background: #e53935;
+      box-shadow: 0 4px 20px rgba(229, 57, 53, 0.50);
+      width: clamp(58px, 13vw, 68px);
+      height: clamp(58px, 13vw, 68px);
+    }
+
+    #endCallBtn:hover {
+      background: #ef5350;
+      box-shadow: 0 6px 28px rgba(229, 57, 53, 0.65);
+      transform: scale(1.08);
+    }
+
+    #endCallBtn:active {
+      background: #c62828;
+      transform: scale(0.93);
+    }
+
+    /* Visual separator between toggle buttons and end-call */
+    .controls-divider {
+      width: 1px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 1px;
+      flex-shrink: 0;
+    }
+
+    /* ─── STATUS CHIP (top-left) ─────────────────────────────── */
+    .call-status {
+      position: absolute;
+      top: clamp(16px, 3vh, 28px);
+      left: clamp(16px, 3vw, 28px);
+      z-index: 10;
+
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+
+      background: rgba(18, 18, 28, 0.60);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 999px;
+
+      color: rgba(255, 255, 255, 0.85);
+      font-size: clamp(11px, 2.5vw, 13px);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      flex-shrink: 0;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(0.75);
+      }
+    }
+
+    /* ─── RESPONSIVE TWEAKS ──────────────────────────────────── */
+
+    /* Very narrow phones */
+    @media (max-width: 400px) {
+      .pip-wrapper {
+        bottom: 88px;
+        right: 10px;
+      }
+
+      .controls-bar {
+        gap: 8px;
+        padding: 10px 16px;
+      }
+    }
+
+    /* Landscape phones — shift PiP to top-right, lower controls bar */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .pip-wrapper {
+        top: clamp(12px, 2vh, 20px);
+        bottom: auto;
+        right: clamp(12px, 2vw, 20px);
+        width: clamp(72px, 16vw, 110px);
+      }
+
+      .controls-bar {
+        bottom: clamp(12px, 3vh, 20px);
+      }
+    }
+  </style>
 </head>
+
 <body>
-  <div class="hn-root">
-    <div class="phone">
-      <!-- Call Screen Container -->
-      <div class="call-screen active" style="flex:1; display:flex; flex-direction:column; position:relative; overflow:hidden;">
-        
-        <!-- Video elements -->
-        <video id="remoteVideo" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1; background: #111;"></video>
-        <video id="localVideo" autoplay playsinline muted style="width: 100px; height: 130px; object-fit: cover; position: absolute; bottom: 130px; right: 20px; z-index: 10; border-radius: 10px; border: 2px solid #FFC700; background: #000;"></video>
 
-        <!-- Background decorative rings -->
-        <div class="call-bg-ring" style="width:500px; height:500px; top:-100px; left:-90px; z-index: 2; opacity: 0.15;"></div>
-        <div class="call-bg-ring" style="width:400px; height:400px; top:-50px; left:-40px; z-index: 2; opacity: 0.15;"></div>
-        <div class="call-bg-ring" style="width:300px; height:300px; top:0px; left:10px; z-index: 2; opacity: 0.15;"></div>
+  <div class="call-stage">
 
-        <!-- Call Header & Body -->
-        <div class="call-body" style="padding-top:40px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index: 2; position: relative;">
-          <div class="call-avatar-ring">
-            <div class="call-avatar-inner">P</div>
-          </div>
-          <p class="call-name">Papa</p>
-          <p class="call-sub" style="letter-spacing:0.08em; color:#444">Hamnasheen • Encrypted</p>
-          <p class="call-timer" id="callTimer">00:00</p>
-          
-          <div class="call-quality">
-            <div class="call-quality-dot"></div>
-            <span class="call-quality-text">Crystal clear · HD Voice</span>
-          </div>
-        </div>
+    <!-- ① BASE LAYER — Remote Video -->
+    <video id="remoteVideo" autoplay playsinline></video>
 
-        <!-- Call Controls Row -->
-        <div class="call-controls" style="margin-bottom:10px; z-index: 2; position: relative;">
-          <div class="ctrl-btn">
-            <div class="ctrl-circle" id="muteBtn" onclick="toggleActive(this)"><i class="ti ti-microphone-off"></i></div>
-            <span class="ctrl-label">Mute</span>
-          </div>
-          
-          <div class="ctrl-btn end" id="endCallBtn">
-            <div class="ctrl-circle end-call"><i class="ti ti-phone-off"></i></div>
-            <span class="ctrl-label" style="color:#c0392b">End Call</span>
-          </div>
-          
-          <div class="ctrl-btn">
-            <div class="ctrl-circle" id="speakerBtn" onclick="toggleActive(this)"><i class="ti ti-volume"></i></div>
-            <span class="ctrl-label">Speaker</span>
-          </div>
-          
-          <div class="ctrl-btn">
-            <div class="ctrl-circle" id="videoBtn" onclick="toggleActive(this)"><i class="ti ti-video"></i></div>
-            <span class="ctrl-label">Video</span>
-          </div>
-          
-          <div class="ctrl-btn">
-            <div class="ctrl-circle"><i class="ti ti-message-2"></i></div>
-            <span class="ctrl-label">Message</span>
-          </div>
-          
-          <div class="ctrl-btn">
-            <div class="ctrl-circle"><i class="ti ti-dots"></i></div>
-            <span class="ctrl-label">More</span>
-          </div>
-        </div>
-
-      </div>
+    <!-- Live call status chip -->
+    <div class="call-status" aria-live="polite">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="callTimer">00:00</span>
     </div>
-  </div>
+
+    <!-- ② PiP LAYER — Local Video (muted to prevent echo) -->
+    <div class="pip-wrapper">
+      <video id="localVideo" autoplay playsinline muted></video>
+    </div>
+
+    <!-- ③ FLOATING CONTROLS BAR -->
+    <div class="controls-bar" role="toolbar" aria-label="Call controls">
+
+      <!-- Toggle Mic — id used by existing WebRTC script -->
+      <button id="toggleMicBtn" class="ctrl-btn" aria-label="Toggle microphone" title="Toggle Mic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z" />
+          <path d="M19 10a7 7 0 0 1-14 0" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+      </button>
+
+      <!-- Toggle Camera — id used by existing WebRTC script -->
+      <button id="toggleCameraBtn" class="ctrl-btn" aria-label="Toggle camera" title="Toggle Camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round" aria-hidden="true">
+          <path d="M23 7l-7 5 7 5V7z" />
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+        </svg>
+      </button>
+
+      <div class="controls-divider" role="separator" aria-hidden="true"></div>
+
+      <!-- End Call — id used by existing WebRTC script -->
+      <button id="endCallBtn" class="ctrl-btn" aria-label="End call" title="End Call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+          stroke-linejoin="round" aria-hidden="true">
+          <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45
+                   c1.12.43 2.33.66 3.53.66a2 2 0 0 1 2 2v3.5a2 2 0 0 1-2 2
+                   C8.95 22.36 1.64 15.05 1.64 6a2 2 0 0 1 2-2H7.1a2 2 0 0 1 2-2
+                   c0 1.2.22 2.4.65 3.52a2 2 0 0 1-.45 2.12L7.68 12.9
+                   a16 16 0 0 0 3 .41z" />
+          <line x1="1" y1="1" x2="23" y2="23" />
+        </svg>
+      </button>
+
+    </div><!-- /.controls-bar -->
+
+  </div><!-- /.call-stage -->
 
   <script src="static/js/config.js"></script>
   <script>
@@ -96,7 +381,7 @@
     // ── WebRTC & Signaling Implementation ──
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || 'demo_room';
-    
+
     // Dynamic Identity Update
     const nameParam = urlParams.get('name');
     if (nameParam) {
@@ -136,23 +421,17 @@
     // Initialize media devices (getUserMedia)
     async function startMedia() {
       const callType = urlParams.get('call_type') || 'video';
-      
+
       // UI Toggle if call is audio-only
       if (callType === 'audio') {
         localVideo.style.display = 'none';
         remoteVideo.style.display = 'none';
       }
 
-      const constraints = {
-        video: callType === 'video',
-        audio: true
-      };
-
       try {
-        localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (callType === 'video') {
-          localVideo.srcObject = localStream;
-        }
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        const localVid = document.getElementById('localVideo');
+        localVid.srcObject = localStream;
       } catch (err) {
         console.error("Error accessing media devices:", err);
         // Fallback to audio only if video fails (e.g. no camera)
@@ -169,6 +448,19 @@
 
       // Resolve pendingOffer queue once localStream is initialized
       if (localStream && pendingOffer) {
+        if (!peerConnection) {
+          await createPeerConnection();
+        }
+        if (localStream && peerConnection) {
+            const senders = peerConnection.getSenders();
+            const hasTracks = senders.length > 0;
+            if (!hasTracks) {
+                localStream.getTracks().forEach(track => {
+                    console.log("Adding track to peer connection:", track.kind);
+                    peerConnection.addTrack(track, localStream);
+                });
+            }
+        }
         console.log("Resolving stored pendingOffer after startMedia completed...");
         await handleOffer(pendingOffer);
         pendingOffer = null;
@@ -188,11 +480,12 @@
 
     ws.onopen = async () => {
       console.log("Signaling socket connected.");
-      await startMedia();
-      // Start connection ONLY if caller and not waiting for ringing acceptance
+      
       const mode = urlParams.get('mode');
       const state = urlParams.get('state');
+
       if (mode === 'caller') {
+        await startMedia(); // Caller gets local PiP
         if (state === 'ringing') {
           console.log("Waiting in ringing state for receiver to accept...");
           const timerEl = document.getElementById('callTimer');
@@ -201,8 +494,10 @@
           console.log("Initiating call as caller.");
           initiateCall();
         }
-      } else {
-        console.log("Waiting for incoming offer as receiver.");
+      } else if (mode === 'receiver') {
+        await startMedia(); // STRICT FIX: Receiver gets local PiP IMMEDIATELY
+        console.log("Receiver media started, sending ready signal.");
+        ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
       }
     };
 
@@ -224,6 +519,8 @@
         await handleOffer(data.offer);
       } else if (data.answer) {
         await handleAnswer(data.answer);
+      } else if (data.candidate) {
+        await handleNewIceCandidate(data.candidate);
       } else if (data.iceCandidate) {
         await handleNewIceCandidate(data.iceCandidate);
       }
@@ -232,22 +529,48 @@
     async function createPeerConnection() {
       console.log("Creating RTCPeerConnection...");
       peerConnection = new RTCPeerConnection(servers);
-      
+
       // Add local stream tracks to PeerConnection strictly before offer/answer
-      if (localStream) {
-        console.log("Adding local tracks to PeerConnection:", localStream.getTracks());
-        localStream.getTracks().forEach(track => {
-          peerConnection.addTrack(track, localStream);
-        });
-      } else {
+      if (localStream && peerConnection) {
+          const senders = peerConnection.getSenders();
+          const hasTracks = senders.length > 0;
+          if (!hasTracks) {
+              localStream.getTracks().forEach(track => {
+                  console.log("Adding track to peer connection:", track.kind);
+                  peerConnection.addTrack(track, localStream);
+              });
+          }
+      } else if (!localStream) {
         console.warn("No localStream available to add tracks!");
       }
 
       // Remote stream track added
       peerConnection.ontrack = (event) => {
         console.log('Remote stream received:', event.streams[0]);
-        if (event.streams && event.streams[0]) {
-          remoteVideo.srcObject = event.streams[0];
+        const remoteVid = document.getElementById('remoteVideo');
+        
+        if (remoteVid.srcObject !== event.streams[0]) { 
+            remoteVid.srcObject = event.streams[0]; 
+        }
+        
+        // FORCE UI VISIBILITY AND PLAY
+        remoteVid.style.display = 'block';
+        remoteVid.style.zIndex = '5'; // Bring to front
+        remoteVid.play().catch(e => console.error("Video play error:", e));
+
+        // STRICTLY HIDE THE PLACEHOLDER
+        const placeholder = document.querySelector('.caller-shape');
+        if (placeholder) { placeholder.style.display = 'none'; }
+        
+        const timerEl = document.querySelector('.caller-sub');
+        if (timerEl && timerEl.textContent.includes("Ringing")) {
+            timerEl.textContent = "Connected";
+        }
+        
+        // Also hide the ringing placeholder here.
+        const callTimerEl = document.getElementById('callTimer');
+        if (callTimerEl && callTimerEl.textContent === "Ringing...") {
+          callTimerEl.textContent = "00:00";
         }
       };
 
@@ -255,7 +578,7 @@
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
           console.log("Generated local ICE candidate:", event.candidate);
-          ws.send(JSON.stringify({ iceCandidate: event.candidate }));
+          ws.send(JSON.stringify({ candidate: event.candidate }));
         }
       };
     }
@@ -263,6 +586,16 @@
     async function initiateCall() {
       console.log("Initiating call offer...");
       await createPeerConnection();
+      if (localStream && peerConnection) {
+          const senders = peerConnection.getSenders();
+          const hasTracks = senders.length > 0;
+          if (!hasTracks) {
+              localStream.getTracks().forEach(track => {
+                  console.log("Adding track to peer connection:", track.kind);
+                  peerConnection.addTrack(track, localStream);
+              });
+          }
+      }
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       console.log("Local offer set and sending...");
@@ -280,9 +613,19 @@
       if (!peerConnection) {
         await createPeerConnection();
       }
+      if (localStream && peerConnection) {
+          const senders = peerConnection.getSenders();
+          const hasTracks = senders.length > 0;
+          if (!hasTracks) {
+              localStream.getTracks().forEach(track => {
+                  console.log("Adding track to peer connection:", track.kind);
+                  peerConnection.addTrack(track, localStream);
+              });
+          }
+      }
       await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       await processQueuedIceCandidates(); // Process early ICE candidates
-      
+
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
       console.log("Local answer set and sending...");
@@ -354,6 +697,39 @@
     window.onbeforeunload = () => {
       endCall(true);
     };
+
+    // Toggle mic track active/inactive
+    const toggleMicBtn = document.getElementById('toggleMicBtn');
+    if (toggleMicBtn) {
+      toggleMicBtn.onclick = () => {
+        if (localStream) {
+          const audioTracks = localStream.getAudioTracks();
+          if (audioTracks.length > 0) {
+            const enabled = !audioTracks[0].enabled;
+            audioTracks[0].enabled = enabled;
+            toggleMicBtn.classList.toggle('muted', !enabled);
+            console.log("Mic track enabled state toggled to:", enabled);
+          }
+        }
+      };
+    }
+
+    // Toggle camera track active/inactive
+    const toggleCameraBtn = document.getElementById('toggleCameraBtn');
+    if (toggleCameraBtn) {
+      toggleCameraBtn.onclick = () => {
+        if (localStream) {
+          const videoTracks = localStream.getVideoTracks();
+          if (videoTracks.length > 0) {
+            const enabled = !videoTracks[0].enabled;
+            videoTracks[0].enabled = enabled;
+            toggleCameraBtn.classList.toggle('off', !enabled);
+            console.log("Camera track enabled state toggled to:", enabled);
+          }
+        }
+      };
+    }
   </script>
 </body>
+
 </html>
