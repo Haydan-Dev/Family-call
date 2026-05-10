@@ -11,7 +11,7 @@ class ConnectionManager:
         self.active_connections[user_id] = websocket
         logging.info(f"User {user_id} connected. Total active: {len(self.active_connections)}")
 
-    def disconnect(self, user_id: str):
+    def disconnect(self, websocket: WebSocket, user_id: str):
         if user_id in self.active_connections:
             del self.active_connections[user_id]
             logging.info(f"User {user_id} disconnected. Total active: {len(self.active_connections)}")
@@ -23,6 +23,6 @@ class ConnectionManager:
                 await websocket.send_json(message)
             except Exception as e:
                 logging.error(f"Error sending message to {user_id}: {e}")
-                self.disconnect(user_id)
+                self.disconnect(websocket, user_id)
 
 manager = ConnectionManager()

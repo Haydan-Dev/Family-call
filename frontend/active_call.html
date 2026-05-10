@@ -407,8 +407,10 @@
     let localStream;
     let peerConnection;
     let pendingOffer = null;
+    let pendingAccept = false;
     let remoteIceCandidatesQueue = [];
     let isCallConnected = false;
+    let isCallInitiated = false;
 
     const servers = {
       iceServers: [
@@ -452,18 +454,27 @@
           await createPeerConnection();
         }
         if (localStream && peerConnection) {
-            const senders = peerConnection.getSenders();
-            const hasTracks = senders.length > 0;
-            if (!hasTracks) {
-                localStream.getTracks().forEach(track => {
-                    console.log("Adding track to peer connection:", track.kind);
-                    peerConnection.addTrack(track, localStream);
-                });
-            }
+          const senders = peerConnection.getSenders();
+          const hasTracks = senders.length > 0;
+          if (!hasTracks) {
+            localStream.getTracks().forEach(track => {
+              console.log("Adding track to peer connection:", track.kind);
+              peerConnection.addTrack(track, localStream);
+            });
+          }
         }
         console.log("Resolving stored pendingOffer after startMedia completed...");
         await handleOffer(pendingOffer);
         pendingOffer = null;
+      }
+
+      // Resolve pendingAccept queue if the caller's hardware was slow
+      if (pendingAccept && !isCallInitiated) {
+        console.log("Resolving stored pendingAccept after startMedia completed...");
+        isCallConnected = true;
+        isCallInitiated = true;
+        initiateCall();
+        pendingAccept = false;
       }
 
       // Unblock browser autoplay blocking
@@ -480,22 +491,20 @@
 
     ws.onopen = async () => {
       console.log("Signaling socket connected.");
-      
       const mode = urlParams.get('mode');
       const state = urlParams.get('state');
 
+      await startMedia();
+
       if (mode === 'caller') {
-        await startMedia(); // Caller gets local PiP
         if (state === 'ringing') {
-          console.log("Waiting in ringing state for receiver to accept...");
           const timerEl = document.getElementById('callTimer');
           if (timerEl) timerEl.textContent = "Ringing...";
-        } else {
-          console.log("Initiating call as caller.");
-          initiateCall();
         }
-      } else if (mode === 'receiver') {
-        await startMedia(); // STRICT FIX: Receiver gets local PiP IMMEDIATELY
+        console.log("Waiting for receiver, sending caller_ready ping...");
+        ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
+      } else {
+        // Receiver notifies system they are ready for offer
         console.log("Receiver media started, sending ready signal.");
         ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
       }
@@ -509,12 +518,25 @@
       } else if (data.event === 'call_ended') {
         console.log("Remote participant ended the call.");
         endCall(false);
-      } else if (data.event === 'call_accepted') {
-        console.log("Receiver accepted call. Initiating WebRTC handshakes...");
-        isCallConnected = true;
+      } else if (data.event === 'receiver_ready') {
+        console.log("Receiver is ready. Initiating WebRTC handshakes...");
         const timerEl = document.getElementById('callTimer');
         if (timerEl) timerEl.textContent = "00:00";
-        initiateCall();
+        if (localStream && !isCallInitiated) {
+          isCallConnected = true;
+          isCallInitiated = true;
+          initiateCall();
+        } else {
+          console.log("Hardware not ready yet, queuing pendingAccept...");
+          pendingAccept = true;
+        }
+      } else if (data.event === 'caller_ready') {
+        // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!
+        const mode = urlParams.get('mode');
+        if (mode !== 'caller') {
+           console.log("Caller pinged, echoing receiver_ready...");
+           ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
+        }
       } else if (data.offer) {
         await handleOffer(data.offer);
       } else if (data.answer) {
@@ -532,14 +554,14 @@
 
       // Add local stream tracks to PeerConnection strictly before offer/answer
       if (localStream && peerConnection) {
-          const senders = peerConnection.getSenders();
-          const hasTracks = senders.length > 0;
-          if (!hasTracks) {
-              localStream.getTracks().forEach(track => {
-                  console.log("Adding track to peer connection:", track.kind);
-                  peerConnection.addTrack(track, localStream);
-              });
-          }
+        const senders = peerConnection.getSenders();
+        const hasTracks = senders.length > 0;
+        if (!hasTracks) {
+          localStream.getTracks().forEach(track => {
+            console.log("Adding track to peer connection:", track.kind);
+            peerConnection.addTrack(track, localStream);
+          });
+        }
       } else if (!localStream) {
         console.warn("No localStream available to add tracks!");
       }
@@ -548,11 +570,13 @@
       peerConnection.ontrack = (event) => {
         console.log('Remote stream received:', event.streams[0]);
         const remoteVid = document.getElementById('remoteVideo');
-        
-        if (remoteVid.srcObject !== event.streams[0]) { 
-            remoteVid.srcObject = event.streams[0]; 
+
+        const incomingStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+        if (remoteVid.srcObject !== incomingStream) {
+          console.log("Binding incoming remote stream...");
+          remoteVid.srcObject = incomingStream;
         }
-        
+
         // FORCE UI VISIBILITY AND PLAY
         remoteVid.style.display = 'block';
         remoteVid.style.zIndex = '5'; // Bring to front
@@ -561,12 +585,12 @@
         // STRICTLY HIDE THE PLACEHOLDER
         const placeholder = document.querySelector('.caller-shape');
         if (placeholder) { placeholder.style.display = 'none'; }
-        
+
         const timerEl = document.querySelector('.caller-sub');
         if (timerEl && timerEl.textContent.includes("Ringing")) {
-            timerEl.textContent = "Connected";
+          timerEl.textContent = "Connected";
         }
-        
+
         // Also hide the ringing placeholder here.
         const callTimerEl = document.getElementById('callTimer');
         if (callTimerEl && callTimerEl.textContent === "Ringing...") {
@@ -587,14 +611,14 @@
       console.log("Initiating call offer...");
       await createPeerConnection();
       if (localStream && peerConnection) {
-          const senders = peerConnection.getSenders();
-          const hasTracks = senders.length > 0;
-          if (!hasTracks) {
-              localStream.getTracks().forEach(track => {
-                  console.log("Adding track to peer connection:", track.kind);
-                  peerConnection.addTrack(track, localStream);
-              });
-          }
+        const senders = peerConnection.getSenders();
+        const hasTracks = senders.length > 0;
+        if (!hasTracks) {
+          localStream.getTracks().forEach(track => {
+            console.log("Adding track to peer connection:", track.kind);
+            peerConnection.addTrack(track, localStream);
+          });
+        }
       }
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
@@ -614,14 +638,14 @@
         await createPeerConnection();
       }
       if (localStream && peerConnection) {
-          const senders = peerConnection.getSenders();
-          const hasTracks = senders.length > 0;
-          if (!hasTracks) {
-              localStream.getTracks().forEach(track => {
-                  console.log("Adding track to peer connection:", track.kind);
-                  peerConnection.addTrack(track, localStream);
-              });
-          }
+        const senders = peerConnection.getSenders();
+        const hasTracks = senders.length > 0;
+        if (!hasTracks) {
+          localStream.getTracks().forEach(track => {
+            console.log("Adding track to peer connection:", track.kind);
+            peerConnection.addTrack(track, localStream);
+          });
+        }
       }
       await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       await processQueuedIceCandidates(); // Process early ICE candidates

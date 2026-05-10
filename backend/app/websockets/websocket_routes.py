@@ -127,17 +127,26 @@ async def call_websocket_endpoint(websocket: WebSocket, room_id: str, client_id:
             data = await websocket.receive_text()
             try:
                 msg_dict = json.loads(data)
-                room_obj_id = ObjectId(room_id)
-                room = await db.conversations.find_one({"_id": room_obj_id})
-                if room:
-                    participant_ids = room.get("participant_ids", [])
-                    recipient_id = next((pid for pid in participant_ids if pid != client_id), None)
-                    if recipient_id:
-                        await manager.send_personal_message(msg_dict, recipient_id)
-            except Exception:
+                
+                # Check if room_id is valid ObjectId
+                if ObjectId.is_valid(room_id):
+                    room_obj_id = ObjectId(room_id)
+                    room = await db.conversations.find_one({"_id": room_obj_id})
+                    if room:
+                        participant_ids = room.get("participant_ids", [])
+                        recipient_id = next((str(pid) for pid in participant_ids if str(pid) != str(client_id)), None)
+                        if recipient_id:
+                            await manager.send_personal_message(msg_dict, recipient_id)
+                        continue
+                
+                # Fallback: If DB routing fails or room is a demo string, broadcast to all OTHER connected users
+                for other_user_id in list(manager.active_connections.keys()):
+                    if str(other_user_id) != str(client_id):
+                        await manager.send_personal_message(msg_dict, other_user_id)
+                        
+            except Exception as e:
+                import logging
+                logging.error(f"WebSocket routing error: {e}")
                 continue
     except WebSocketDisconnect:
-        try:
-            manager.disconnect(client_id)
-        except TypeError:
-            manager.disconnect(websocket, client_id)
+        manager.disconnect(websocket, client_id)
