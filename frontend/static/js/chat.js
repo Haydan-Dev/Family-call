@@ -674,8 +674,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = JSON.parse(event.data);
 
         if (payload.event === 'incoming_call') {
-          showIncomingCall(payload.caller_name || 'Unknown', payload.room_id, payload.call_type || 'video');
-          return; // Stop execution
+          if (payload.call_type === 'audio') {
+             // Strict Audio Flow Redirect for Receiver
+             window.location.href = `audio_incommingcall.html?room_id=${payload.room_id}&caller_name=${encodeURIComponent(payload.caller_name || 'Family')}`;
+          } else {
+             showIncomingCall(payload.caller_name || 'Unknown', payload.room_id, payload.call_type || 'video');
+          }
+          return; 
         }
 
         if (payload.event === 'call_cancelled') {
@@ -1251,7 +1256,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       setTimeout(() => {
-        window.location.href = `active_call.html?room_id=${roomId}&mode=caller&call_type=audio&name=${encodeURIComponent(recipientName)}&state=ringing`;
+        window.location.href = `outgoing_call_ringing_screen.html?room_id=${roomId}&name=${encodeURIComponent(recipientName)}`;
       }, 200);
     });
   }

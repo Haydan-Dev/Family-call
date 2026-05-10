@@ -2184,4 +2184,156 @@ body::before {
 .wave-bar.active {
   background: #FFC700;
 }
+
+.wave-bar.active {
+  background: #FFC700;
+}
+
+/* ============================================
+   TRUE FULL-SCREEN RESPONSIVE OVERRIDES
+   ============================================ */
+
+/* 📱 Universal Full Fill (Applies to All Screen Sizes by Default Now) */
+.hn-root, body {
+  background: #050505;
+  width: 100%;
+  height: 100%;
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.phone, .app-container, .chat-container, .splash {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  border-radius: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  background: #111111;
+}
+
+/* 💻 Layout Optimization for Large Screens (Tablet / Laptop / Desktop) */
+@media (min-width: 768px) {
+  /* Increase overall visual scale and padding */
+  .app-header, header, .chat-header {
+    padding: 24px 40px !important;
+  }
+
+  .app-title, .app-name, .header-title {
+    font-size: 28px !important;
+  }
+
+  /* Center Content Wells for Professional Layout so columns don't stretch awkwardly */
+  .chat-list, 
+  .story-row, 
+  .list-container, 
+  .search-bar, 
+  .section-label, 
+  .chat-body,
+  .chat-footer {
+    max-width: 900px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    width: 90% !important;
+  }
+
+  /* Splash Center Pane for Desktop Authentication */
+  .splash {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at center, #0f0f0f 0%, #050505 100%) !important;
+  }
+
+  .splash .center, .splash .form-container {
+    max-width: 460px !important;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  /* Adjust chat bubbles size on desktop */
+  .bubble {
+    max-width: 65% !important;
+  }
+
+  /* Float the Chat Floating Action Button in line with main well */
+  .fab {
+    right: max(24px, calc(50% - 430px)) !important;
+  }
+
+  /* 🚀 COMPONENT UPSCALE: Dynamically make elements BIGGER for wide screens! */
+  .card-item {
+    padding: 20px 28px !important;
+    gap: 20px !important;
+  }
+
+  .avatar {
+    width: 60px !important;
+    height: 60px !important;
+    font-size: 24px !important;
+  }
+
+  .name-text, .chat-name {
+    font-size: 18px !important;
+  }
+
+  .sub-text, .chat-preview {
+    font-size: 15px !important;
+  }
+
+  /* FIX: Re-establishing native stretching bottom-nav with component scaling */
+  .bottom-nav {
+    height: 75px !important;
+    background: #0a0a0a !important;
+    border-top: 1px solid #1e1e1e !important;
+    padding: 0 40px 15px !important;
+    width: 100% !important; /* Ensure native fill */
+    display: flex !important;
+    justify-content: space-around !important;
+    /* Scale internal contents */
+  }
+
+  .nav-item i {
+    font-size: 26px !important;
+  }
+
+  .nav-item span {
+    font-size: 12px !important;
+  }
+
+  .nav-cam-btn {
+    width: 55px !important;
+    height: 55px !important;
+    margin-top: -25px !important;
+  }
+  .nav-cam-btn i {
+    font-size: 26px !important;
+  }
+}
+
+/* 🖥️ Ultra Wide Optimization (> 1200px) - Scale it even more for luxury feel */
+@media (min-width: 1200px) {
+  .card-item {
+    padding: 24px 36px !important;
+  }
+  .avatar {
+    width: 70px !important;
+    height: 70px !important;
+    font-size: 28px !important;
+  }
+  .name-text, .chat-name {
+    font-size: 21px !important;
+  }
+  .sub-text, .chat-preview {
+    font-size: 16px !important;
+  }
+  .bottom-nav {
+    height: 90px !important;
+    padding: 0 80px 20px !important;
+  }
+}
 
