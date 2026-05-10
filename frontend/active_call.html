@@ -522,13 +522,15 @@
         console.log("Receiver is ready. Initiating WebRTC handshakes...");
         const timerEl = document.getElementById('callTimer');
         if (timerEl) timerEl.textContent = "00:00";
-        if (localStream && !isCallInitiated) {
-          isCallConnected = true;
-          isCallInitiated = true;
-          initiateCall();
-        } else {
-          console.log("Hardware not ready yet, queuing pendingAccept...");
-          pendingAccept = true;
+        if (!isCallInitiated) {
+           if (localStream) {
+             isCallConnected = true;
+             isCallInitiated = true;
+             initiateCall();
+           } else {
+             console.log("Hardware not ready yet, queuing pendingAccept...");
+             pendingAccept = true;
+           }
         }
       } else if (data.event === 'caller_ready') {
         // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!

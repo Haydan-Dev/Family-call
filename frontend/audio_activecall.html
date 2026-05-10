@@ -333,6 +333,7 @@
     let peerConnection;
     let remoteIceCandidatesQueue = [];
     let pendingOffer = null;
+    let pendingAccept = false;
     let isCallInitiated = false; // Prevents duplicate offers if ping-pong fires multiple times
     const remoteAudio = document.getElementById('remoteAudio');
 
@@ -376,6 +377,14 @@
         pendingOffer = null;
       }
 
+      // Resolve pendingAccept queue if the caller's hardware was slow
+      if (pendingAccept && !isCallInitiated) {
+        console.log("Resolving stored pendingAccept after startMedia completed...");
+        isCallInitiated = true;
+        initiateCall();
+        pendingAccept = false;
+      }
+
       // Trigger browser audio autoplay unlock
       document.body.addEventListener('click', () => {
         if (remoteAudio.paused && remoteAudio.srcObject) {
@@ -411,8 +420,13 @@
         if (data.event === 'receiver_ready') {
           // For caller: now safe to generate offer. Prevent duplicate offers if already negotiating.
           if (!isCallInitiated && (!peerConnection || peerConnection.signalingState === "stable")) {
-             isCallInitiated = true;
-             initiateCall();
+             if (localStream) {
+               isCallInitiated = true;
+               initiateCall();
+             } else {
+               console.log("Hardware not ready yet, queuing pendingAccept...");
+               pendingAccept = true;
+             }
           }
         } else if (data.event === 'caller_ready') {
           // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!
