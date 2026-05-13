@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Hamnasheen - Chat</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="static/css/style.css">
+</head>
+
+<body>
+
+<div class="hn-root">
+  <div class="phone" style="background: #0a0a0a;">
+
+    <header class="chat-header" style="padding: 12px 16px; background: #111111; border-bottom: 1px solid rgba(255, 199, 0, 0.1); display: flex; align-items: center; gap: 12px; z-index: 10;">
+      <button class="back-btn" id="backBtn" onclick="window.location.href='home.html'" style="background: none; border: none; color: #FFC700; font-size: 20px; cursor: pointer; display: flex; align-items: center;">
+        <i class="ti ti-arrow-left"></i>
+      </button>
+      <div class="avatar" id="headerAvatar" style="width: 38px; height: 38px; border-radius: 50%; background: #1f1f1f; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #FFC700; position: relative;">
+        <span id="avatarInitial">P</span>
+        <div class="online-dot" style="position: absolute; bottom: 1px; right: 1px; width: 10px; height: 10px; border-radius: 50%; background: #25D366; border: 2px solid #111;"></div>
+      </div>
+      <div class="chat-header-info" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <p class="chat-header-name" id="roomTitle" style="font-size: 15px; font-weight: 600; color: #fff; margin: 0; line-height: 1.2;">Loading Chat...</p>
+        <p class="chat-header-sub online" style="font-size: 11px; color: #25D366; margin: 4px 0 0 0; line-height: 1.2;">Online</p>
+      </div>
+      <div class="call-btns" style="display: flex; gap: 8px;">
+        <button class="call-btn" id="voiceCallBtn" style="width: 34px; height: 34px; border-radius: 50%; background: rgba(255,199,0,0.08); border: 1px solid rgba(255,199,0,0.15); display: flex; align-items: center; justify-content: center; cursor: pointer; color: #FFC700; font-size: 16px;">
+          <i class="ti ti-phone"></i>
+        </button>
+        <button class="call-btn" id="videoCallBtn" style="width: 34px; height: 34px; border-radius: 50%; background: rgba(255,199,0,0.08); border: 1px solid rgba(255,199,0,0.15); display: flex; align-items: center; justify-content: center; cursor: pointer; color: #FFC700; font-size: 16px;">
+          <i class="ti ti-video"></i>
+        </button>
+      </div>
+    </header>
+
+    <div id="strangerBanner" class="stranger-banner hidden">
+      <div class="stranger-info">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Unknown Sender</span>
+      </div>
+      <div class="stranger-actions">
+        <button id="addContactBtn" class="action-btn add">Add Contact</button>
+        <button id="blockStrangerBtn" class="action-btn block">Block</button>
+        <button id="reportSpamBtn" class="action-btn report">Report Spam</button>
+      </div>
+    </div>
+
+    <main class="chat-body" id="chatBody">
+      <div class="loading-state" id="loadingState">
+        <div class="spinner"></div>
+      </div>
+    </main>
+
+    <footer class="chat-footer">
+      <div id="replyBanner" class="reply-banner hidden">
+        <!-- Crimson accent bar (matches bubble quote block) -->
+        <div class="reply-accent-bar"></div>
+        <div class="reply-content">
+          <div class="reply-sender" id="replyBannerSender">You</div>
+          <div class="reply-text" id="replyBannerText"></div>
+        </div>
+        <button id="closeReplyBtn" class="close-reply-btn" aria-label="Cancel reply">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="attachment-menu" id="attachMenu">
+        <div class="attach-item" data-type="document">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          Document
+        </div>
+        <div class="attach-item" data-type="photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          Photos &amp; videos
+        </div>
+        <div class="attach-item" data-type="camera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+          Camera
+        </div>
+        <div class="attach-item" data-type="audio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          Audio
+        </div>
+        <div class="attach-item" data-type="contact">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          Contact
+        </div>
+        <div class="attach-item" data-type="poll">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          Poll
+        </div>
+      </div>
+      <input type="file" id="mediaInput" accept="image/*,video/*" style="display:none" />
+      <button class="media-btn" id="mediaBtn" style="background: none; border: none; color: #888; font-size: 22px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; padding: 0;">
+        <i class="ti ti-paperclip"></i>
+      </button>
+      <div class="msg-input-wrapper" style="flex: 1; position: relative; display: flex; align-items: center;">
+        <input type="text" class="msg-input" id="msgInput" placeholder="Type a message..." autocomplete="off" style="width: 100%; padding: 12px 40px 12px 16px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; color: #FFFFFF; font-size: 14px; outline: none;" />
+        <i class="ti ti-mood-smile" style="position: absolute; right: 14px; color: #555; font-size: 18px; cursor: pointer;"></i>
+      </div>
+      <button class="send-btn" id="sendBtn" style="width: 44px; height: 44px; border-radius: 50%; background: #FFC700; color: #111111; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(255, 199, 0, 0.2);">
+        <i class="ti ti-microphone" id="sendBtnIcon"></i>
+      </button>
+    </footer>
+
+
+  <!-- CONTEXT MENU -->
+  <div id="msgContextMenu" class="context-menu">
+    <div class="ctx-item" data-action="reply">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <polyline points="9 17 4 12 9 7"></polyline>
+        <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+      </svg>
+      Reply
+    </div>
+    <div class="ctx-item" data-action="forward">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <polyline points="15 17 20 12 15 7"></polyline>
+        <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
+      </svg>
+      Forward
+    </div>
+    <div class="ctx-item" data-action="pin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <line x1="12" y1="17" x2="12" y2="22"></line>
+        <path
+          d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 11.24V6a3 3 0 0 0-6 0v5.24a2 2 0 0 1-1.11 1.31l-1.78.9A2 2 0 0 0 5 15.24Z">
+        </path>
+      </svg>
+      Pin
+    </div>
+    <div class="ctx-item" id="ctxEdit" data-action="edit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+      </svg>
+      Edit
+    </div>
+    <div class="ctx-item" id="ctxDownload" data-action="download" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download
+    </div>
+    <div class="ctx-item delete" id="ctxDelete" data-action="delete">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      </svg>
+      Delete
+    </div>
+  </div>
+
+  <!-- FORWARD MODAL -->
+  <div id="forwardModalOverlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-title">Forward Message</div>
+      <div id="forwardLoading" style="text-align: center; display: none;">
+        <div class="spinner" style="margin: 0 auto;"></div>
+      </div>
+      <div id="forwardList"></div>
+      <div class="modal-actions">
+        <button class="btn-modal btn-cancel" id="closeForwardBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INCOMING CALL OVERLAY -->
+  <div id="incomingCallOverlay" class="slider-container" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; z-index:1000; background:#000; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px; box-sizing:border-box;">
+    <!-- Background decorative rings -->
+    <div class="call-bg-ring" style="width:300px; height:300px; top:10%; left:10%; position:absolute; opacity:0.1; border: 2px solid #FFC700; border-radius:50%;"></div>
+    <div class="call-bg-ring" style="width:200px; height:200px; top:20%; left:20%; position:absolute; opacity:0.05; border: 2px solid #FFC700; border-radius:50%;"></div>
+
+    <!-- Call Content -->
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:1002; width:100%;">
+      <p style="font-size:11px; color:#FFC700; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:8px">Hamnasheen • Incoming Call</p>
+      
+      <div class="call-avatar-ring" style="width:120px; height:120px; border-radius:50%; border:3px solid #FFC700; display:flex; align-items:center; justify-content:center; background:rgba(255,199,0,0.05);">
+        <div id="incomingCallAvatar" style="font-size:40px; color:#fff; font-family:'DM Sans', sans-serif;">P</div>
+      </div>
+      
+      <p id="incomingCallName" style="font-family:'Playfair Display',serif; font-size:28px; font-weight:700; color:#fff; margin-top:12px">Papa</p>
+      <p id="incomingCallType" style="font-size:12px; color:#888">Voice Call</p>
+
+      <!-- Actions Row -->
+      <div style="width:100%; display:flex; justify-content:space-around; align-items:center; margin-top:40px; padding:0 20px;">
+        <!-- Decline -->
+        <div id="declineCallOverlayBtn" style="display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer;">
+          <div style="width:60px; height:60px; border-radius:50%; background:#c0392b; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(192,57,43,0.3)">
+            <i class="ti ti-phone-off" style="font-size:24px; color:#fff"></i>
+          </div>
+          <span style="font-size:11px; color:#888">Decline</span>
+        </div>
+        
+        <!-- Accept -->
+        <div id="acceptCallOverlayBtn" style="display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer;">
+          <div style="width:60px; height:60px; border-radius:50%; background:#25D366; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(37,211,102,0.3)">
+            <i class="ti ti-phone" style="font-size:24px; color:#fff"></i>
+          </div>
+          <span style="font-size:11px; color:#888">Accept</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  </div> <!-- end phone -->
+</div> <!-- end hn-root -->
+
+  <script src="static/js/config.js"></script>
+  <script src="static/js/permission_guard.js"></script>
+  <script src="static/js/chat.js" defer></script>
+
+</body>
+
+</html>
