@@ -461,6 +461,15 @@
     }
 
     // 4. WebSocket Event listener for call acceptance
+    const outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+    outgoingAudio.loop = true;
+    try { outgoingAudio.play(); } catch(e) { console.log("Blocked:", e); }
+
+    function stopRinging() {
+      outgoingAudio.pause();
+      outgoingAudio.currentTime = 0;
+    }
+
     const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
     const ws = new WebSocket(wsUrl);
 
@@ -474,6 +483,7 @@
 
       if (data.event === 'call_accepted' || data.event === 'receiver_ready') {
         // Redirect caller to real active call screen
+        stopRinging();
         const lbl = document.getElementById('statusLbl');
         lbl.textContent = 'Connected';
         lbl.style.color = '#25D366';
@@ -483,6 +493,7 @@
         }, 500);
       }
       else if (data.event === 'call_declined') {
+        stopRinging();
         const lbl = document.getElementById('statusLbl');
         lbl.textContent = 'Call Declined';
         lbl.style.color = '#c0392b';
@@ -504,6 +515,7 @@
     };
 
     document.getElementById('cancelBtn').onclick = async () => {
+      stopRinging();
       const lbl = document.getElementById('statusLbl');
       lbl.textContent = 'Cancelling...';
       lbl.style.color = '#c0392b';

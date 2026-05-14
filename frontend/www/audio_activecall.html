@@ -338,6 +338,24 @@
     let isCallInitiated = false; // Prevents duplicate offers if ping-pong fires multiple times
     const remoteAudio = document.getElementById('remoteAudio');
 
+    // ── Global Ringing Audio Objects ──
+    const incomingAudio = new Audio('./sounds/ringtone.mp3');
+    const outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+    incomingAudio.loop = true;
+    outgoingAudio.loop = true;
+
+    function stopAllRinging() {
+      try {
+        incomingAudio.pause();
+        incomingAudio.currentTime = 0;
+        outgoingAudio.pause();
+        outgoingAudio.currentTime = 0;
+      } catch (e) {
+        console.log("Audio stop failed:", e);
+      }
+    }
+
+
     const servers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -437,10 +455,14 @@
              ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
           }
         } else if (data.event === 'call_ended' || data.event === 'call_declined') {
+          stopAllRinging();
           terminateCall();
+
         } else if (data.offer) {
+          try { incomingAudio.play(); } catch (e) { console.log("Incoming play blocked:", e); }
           await handleOffer(data.offer);
         } else if (data.answer) {
+
           await handleAnswer(data.answer);
         } else if (data.candidate || data.iceCandidate) {
           await handleRemoteIceCandidate(data.candidate || data.iceCandidate);
@@ -499,6 +521,8 @@
       peerConnection.ontrack = (event) => {
         try {
           console.log(`Unified incoming track detected: [${event.track.kind}]`);
+          stopAllRinging();
+
 
           // ADDITIVE BUFFER LOCK: The unkillable stream buffer
           let activeStream = remoteAudio.srcObject;
@@ -541,7 +565,7 @@
       const offer = await peerConnection.createOffer({ offerToReceiveAudio: true });
       await peerConnection.setLocalDescription(offer);
       ws.send(JSON.stringify({ offer: offer }));
-
+      try { outgoingAudio.play(); } catch (e) { console.log("Outgoing play blocked:", e); }
       setStatusText("Ringing...", "#FFC700");
     }
 
@@ -570,14 +594,15 @@
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
       ws.send(JSON.stringify({ answer: answer }));
-
+      stopAllRinging();
       setStatusText("Connecting...", "#FFC700");
     }
 
     async function handleAnswer(answer) {
       console.log("Answer packet matched. Closing synchronization loop.");
       await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      await flushIceQueue();
+      stopAllRinging();
+
 
       // Explicitly ensure Caller visual moves to Connecting when Answer is confirmed
       setStatusText("Connecting...", "#FFC700");
@@ -601,7 +626,9 @@
     }
 
     async function terminateCall() {
+      stopAllRinging();
       if (ws && ws.readyState === WebSocket.OPEN) {
+
         ws.send(JSON.stringify({ event: "call_ended", room_id: roomId }));
       }
       

@@ -384,6 +384,24 @@
     const myName = urlParams.get('name') || 'Family Member';
     const callId = urlParams.get('call_id');
 
+    // ── Global Ringing Audio Objects ──
+    const incomingAudio = new Audio('./sounds/ringtone.mp3');
+    const outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+    incomingAudio.loop = true;
+    outgoingAudio.loop = true;
+
+    function stopAllRinging() {
+      try {
+        incomingAudio.pause();
+        incomingAudio.currentTime = 0;
+        outgoingAudio.pause();
+        outgoingAudio.currentTime = 0;
+      } catch (e) {
+        console.log("Audio stop failed:", e);
+      }
+    }
+
+
     // Set caller's name
     const callNameEl = document.querySelector('.call-name');
     if (callNameEl) {
@@ -513,10 +531,13 @@
       const data = JSON.parse(event.data);
       if (data.event === 'call_declined') {
         console.log("Receiver declined the call. Redirecting...");
+        stopAllRinging();
         endCall(false);
       } else if (data.event === 'call_ended') {
         console.log("Remote participant ended the call.");
+        stopAllRinging();
         endCall(false);
+
       } else if (data.event === 'receiver_ready') {
         console.log("Receiver is ready. Initiating WebRTC handshakes...");
         const timerEl = document.getElementById('callTimer');
@@ -539,8 +560,10 @@
            ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
         }
       } else if (data.offer) {
+        try { incomingAudio.play(); } catch (e) { console.log("Incoming play blocked:", e); }
         await handleOffer(data.offer);
       } else if (data.answer) {
+
         await handleAnswer(data.answer);
       } else if (data.candidate) {
         await handleNewIceCandidate(data.candidate);
@@ -570,7 +593,9 @@
       // Remote stream track added
       peerConnection.ontrack = (event) => {
         console.log('Remote track received:', event.track.kind);
+        stopAllRinging();
         const remoteVid = document.getElementById('remoteVideo');
+
 
         if (event.streams && event.streams[0]) {
           if (remoteVid.srcObject !== event.streams[0]) {
@@ -645,7 +670,9 @@
       await peerConnection.setLocalDescription(offer);
       console.log("Local offer set and sending...");
       ws.send(JSON.stringify({ offer: offer }));
+      try { outgoingAudio.play(); } catch (e) { console.log("Outgoing play blocked:", e); }
     }
+
 
     async function handleOffer(offer) {
       if (!localStream) {
@@ -675,13 +702,17 @@
       await peerConnection.setLocalDescription(answer);
       console.log("Local answer set and sending...");
       ws.send(JSON.stringify({ answer: answer }));
+      stopAllRinging();
     }
+
 
     async function handleAnswer(answer) {
       console.log("Received remote answer, processing...");
       await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      stopAllRinging();
       await processQueuedIceCandidates(); // Process early ICE candidates
     }
+
 
     async function handleNewIceCandidate(candidate) {
       try {
@@ -715,7 +746,9 @@
     // End call: stop stream tracks and close peer connection
     async function endCall(isSender = false) {
       console.log("Ending call...");
+      stopAllRinging();
       if (isSender) {
+
         if (ws && ws.readyState === WebSocket.OPEN) {
           const state = urlParams.get('state');
           let endStatus = 'ended';

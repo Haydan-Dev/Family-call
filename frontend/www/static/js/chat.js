@@ -109,6 +109,26 @@ document.addEventListener('DOMContentLoaded', () => {
   let replyingToMsgId = null;
   let currentMediaUrl = null; // Set when context menu opens on a media bubble
 
+  // ── Global Audio Objects ──
+  const messageSound = new Audio('./sounds/notification.mp3');
+  const incomingAudio = new Audio('./sounds/ringtone.mp3');
+  const outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+  messageSound.loop = false;
+  incomingAudio.loop = true;
+  outgoingAudio.loop = true;
+
+  function stopAllRinging() {
+    try {
+      incomingAudio.pause();
+      incomingAudio.currentTime = 0;
+      outgoingAudio.pause();
+      outgoingAudio.currentTime = 0;
+    } catch (e) {
+      console.log("Audio stop failed:", e);
+    }
+  }
+
+
   // Utility: Show Custom Toast
   function showToast(message) {
     const container = document.getElementById('toastContainer');
@@ -138,6 +158,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function scrollToBottom() {
     chatBody.scrollTop = chatBody.scrollHeight;
   }
+
+  // ── Audio Unlocker for Mobile Autoplay ──
+  // Browsers block Audio.play() until a user gesture occurs.
+  // We unlock the AudioContext on the first click.
+  document.body.addEventListener('click', () => {
+    const unlocker = new Audio();
+    unlocker.play().catch(() => {});
+    // Also try to 'resume' the existing objects if they were blocked
+    if (typeof messageSound !== 'undefined') {
+       [messageSound, incomingAudio, outgoingAudio].forEach(a => {
+         a.play().then(() => { a.pause(); }).catch(() => {});
+       });
+    }
+  }, { once: true });
 
   // 2. Load History
   async function fetchHistory() {
@@ -684,23 +718,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = JSON.parse(event.data);
 
         if (payload.event === 'incoming_call') {
+          try { incomingAudio.play(); } catch (e) { console.log("Ringing blocked:", e); }
           if (payload.call_type === 'audio') {
             // Strict Audio Flow Redirect for Receiver
             window.location.href = `audio_incommingcall.html?room_id=${payload.room_id}&caller_name=${encodeURIComponent(payload.caller_name || 'Family')}`;
           } else {
-            showIncomingCall(payload.caller_name || 'Unknown', payload.room_id, payload.call_type || 'video');
+            showIncomingCall(payload.caller_name || 'Unknown', payload.room_id, payload.call_type || 'video', payload.call_id);
           }
           return;
         }
 
+
         if (payload.event === 'call_cancelled') {
           console.log("Caller cancelled the call.");
+          stopAllRinging();
           const overlay = document.getElementById('incomingCallOverlay');
           if (overlay) {
             overlay.style.display = 'none';
           }
           return; // Stop execution
         }
+
 
         if (payload.event === 'call_accepted' || payload.event === 'call_rejected') {
           console.log("Call signaling received:", payload.event);
@@ -764,7 +802,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ── STRICT CHAT MESSAGE RENDERER ──
         if (payload.event === 'new_message' || payload.event === 'new_message_sent') {
+          if (payload.event === 'new_message') {
+            try { messageSound.play(); } catch (e) { console.log("Notification blocked:", e); }
+          }
           if (payload.room_id && payload.room_id !== roomId) {
+
             authFetch(`${BASE_URL}/messages/mark_delivered`, { method: 'PUT' });
           } else {
             const mockMsg = {
@@ -1228,7 +1270,9 @@ document.addEventListener('DOMContentLoaded', () => {
               room_id: roomID
             }));
           }
+          stopAllRinging();
           overlay.style.display = 'none';
+
 
           if (callId) {
             try {
@@ -1245,7 +1289,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const acceptBtn = document.getElementById('acceptCallOverlayBtn');
       if (acceptBtn) {
         acceptBtn.onclick = () => {
+          stopAllRinging();
           overlay.style.display = 'none';
+
           if (window.ws && window.ws.readyState === WebSocket.OPEN) {
             window.ws.send(JSON.stringify({
               event: "call_accepted",

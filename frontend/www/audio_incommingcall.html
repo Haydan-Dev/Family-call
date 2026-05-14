@@ -176,6 +176,15 @@
     setInterval(tick, 10000);
     tick();
 
+    const incomingAudio = new Audio('./sounds/ringtone.mp3');
+    incomingAudio.loop = true;
+    try { incomingAudio.play(); } catch(e) { console.log("Blocked:", e); }
+
+    function stopRinging() {
+      incomingAudio.pause();
+      incomingAudio.currentTime = 0;
+    }
+
     const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
     const ws = new WebSocket(wsUrl);
 
@@ -186,11 +195,13 @@
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.event === 'call_cancelled') {
+        stopRinging();
         window.location.href = `chat.html?room_id=${roomId}`;
       }
     };
 
     document.getElementById('acceptBtn').onclick = () => {
+      stopRinging();
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ event: 'call_accepted', room_id: roomId }));
       }
@@ -201,6 +212,7 @@
     };
 
     document.getElementById('declineBtn').onclick = async () => {
+      stopRinging();
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ event: 'call_declined', room_id: roomId }));
       }
