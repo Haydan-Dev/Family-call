@@ -1,0 +1,25 @@
+# --- Python Backend ---
+__pycache__/
+.venv/
+.env
+*.py[cod]
+*$py.class
+
+# --- JavaScript / React Frontend ---
+node_modules/
+dist/
+build/
+.eslintcache
+npm-debug.log*
+
+# --- Android (Capacitor) ---
+android/app/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+
+# --- OS & Misc ---
+.DS_Store
+Thumbs.db
+*.log
+.vscode/

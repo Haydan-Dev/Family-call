@@ -19,11 +19,32 @@ db = get_database()
 
 @router.post("/start")
 async def call_initialize(call_data: callrequest, user_id: str = Depends(get_current_user_token)):
-    call_id = await call_initialize_db(db, user_id, call_data.model_dump())
-    if call_id:
-        return {"status": 200, "Message": "Call is started and Noted in DB Successfully", "call_id": call_id} 
-    else:
-        raise HTTPException(status_code=500, detail="Database insertion failed. Call log could not be created.")
+    from bson import ObjectId
+    
+    # Resolve receiver_id from room_id
+    try:
+        room = await db.conversations.find_one({"_id": ObjectId(call_data.room_id)})
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found")
+            
+        participant_ids = room.get("participant_ids", [])
+        receiver_id = next((str(pid) for pid in participant_ids if str(pid) != str(user_id)), None)
+        
+        if not receiver_id:
+            raise HTTPException(status_code=404, detail="Receiver not found in room")
+            
+        db_call_data = {
+            "receiver_id": receiver_id,
+            "call_type": call_data.call_type
+        }
+        
+        call_id = await call_initialize_db(db, user_id, db_call_data)
+        if call_id:
+            return {"status": 200, "Message": "Call is started and Noted in DB Successfully", "call_id": call_id} 
+        else:
+            raise HTTPException(status_code=500, detail="Database insertion failed.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/status_update/{call_id}")
 async def call_status_update(call_id: str, call_update: Call_Status_Update, user_id: str = Depends(get_current_user_token)):

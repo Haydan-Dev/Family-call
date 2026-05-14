@@ -16,8 +16,22 @@ async def call_status_update_db(db, user_id: str, call_id: str, new_status: str)
         return False
         
     update_fields = {"call_status": new_status}
-    if new_status == "ended":
+    now = dt.datetime.now(dt.timezone.utc)
+    
+    if new_status == "ongoing":
+        # Reset started_at to the exact moment the call actually connected
+        update_fields["started_at"] = now
+    elif new_status == "ended":
         update_fields["disconnected_by"] = user_id
+        update_fields["ended_at"] = now
+        
+        # Calculate duration
+        existing_call = await db.calls.find_one({"_id": id})
+        if existing_call and "started_at" in existing_call:
+            started_at = existing_call["started_at"]
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=dt.timezone.utc)
+            update_fields["duration"] = int((now - started_at).total_seconds())
         
     update_result = await db.calls.update_one({"_id": id}, {"$set": update_fields})
     return update_result.modified_count > 0

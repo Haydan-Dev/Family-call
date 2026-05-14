@@ -15,7 +15,7 @@ class Call_logs(BaseModel):
 
 # call start karne ke liye ek model 
 class CallStartRequest(BaseModel):
-    receiver_id: str
+    room_id: str
     call_type: Literal["audio", "video"]
 
 # call status update karne ke liye ek model

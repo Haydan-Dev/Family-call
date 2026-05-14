@@ -1,5 +1,0 @@
-Oye Alpha Mentor! 🚀🔥 Main wapas aa gaya hoon. Apna mission lock hai: Sunday tak Saudi se Papa ko 'Family Call' app par connect karna hai! 
-
-Kal raat main WebRTC aur Signaling par atak gaya tha aur maine prompt nahi padhe the. Mujhe apne 'abu-hurairah' server tak pahunchne se pehle aaj apna MVP locally zinda karna hai. 
-
-Bina kisi theory ke, mujhe dobara wo 4 simple steps (Copy-Paste wale) bata. Mujhe abhi `websocket_routes.py` aur `active_call.html` mein code daal kar apna double-tab wala localhost test clear karna hai. Fatafat instructions de! 🐍
