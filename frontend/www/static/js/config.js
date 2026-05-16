@@ -5,11 +5,10 @@
 // const WS_URL = `ws://${SERVER_IP}:${PORT}`;
 
 
-// --- TUNNEL CONFIGURATION ---
-// Jab Cloudflare use kar rahe ho, toh local IP ko bhool jao.
-const TUNNEL_DOMAIN = "rfc-graph-accurate-concord.trycloudflare.com";
+/// Cloudflare hata diya, Tailscale Funnel Zindabad!
+const TUNNEL_DOMAIN = "abu-hurairah.tail6c8cb6.ts.net";
 const BASE_URL = `https://${TUNNEL_DOMAIN}`; // HTTPS for Secure Fetch
-const WS_URL = `wss://${TUNNEL_DOMAIN}`;    // WSS for Secure WebSocket Handshake
+const WS_URL = `wss://${TUNNEL_DOMAIN}`;     // WSS for Secure WebSockets
 
 // Ye ensure karta hai ki WebRTC signaling block na ho
 console.log("🚀 Signaling via Tunnel:", WS_URL);
