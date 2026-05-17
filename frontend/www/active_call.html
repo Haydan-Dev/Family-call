@@ -366,7 +366,7 @@
     let seconds = 0;
     const timerElement = document.getElementById('callTimer');
     setInterval(() => {
-      if (timerElement.textContent === "Ringing...") return;
+      if (timerElement.textContent === "Ringing..." || timerElement.textContent === "Connecting...") return;
       seconds++;
       const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
       const secs = String(seconds % 60).padStart(2, '0');
@@ -455,7 +455,6 @@
         localVid.srcObject = localStream;
       } catch (err) {
         console.error("Error accessing media devices:", err);
-        // Fallback to audio only if video fails (e.g. no camera)
         if (callType === 'video') {
           try {
             localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -467,36 +466,24 @@
         }
       }
 
-      // Resolve pendingOffer queue once localStream is initialized
-      if (localStream && pendingOffer) {
-        if (!peerConnection) {
-          await createPeerConnection();
+      if (localStream && peerConnection) {
+        const transceivers = peerConnection.getTransceivers();
+        
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          const audioTrans = transceivers.find(t => (t.receiver && t.receiver.track && t.receiver.track.kind === 'audio') || (t.sender.track && t.sender.track.kind === 'audio')) || transceivers[0];
+          if (audioTrans && audioTrans.sender.replaceTrack) audioTrans.sender.replaceTrack(audioTrack);
+          else peerConnection.addTrack(audioTrack, localStream);
         }
-        if (localStream && peerConnection) {
-          const senders = peerConnection.getSenders();
-          const hasTracks = senders.length > 0;
-          if (!hasTracks) {
-            localStream.getTracks().forEach(track => {
-              console.log("Adding track to peer connection:", track.kind);
-              peerConnection.addTrack(track, localStream);
-            });
-          }
+
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          const videoTrans = transceivers.find(t => (t.receiver && t.receiver.track && t.receiver.track.kind === 'video') || (t.sender.track && t.sender.track.kind === 'video')) || transceivers[1];
+          if (videoTrans && videoTrans.sender.replaceTrack) videoTrans.sender.replaceTrack(videoTrack);
+          else peerConnection.addTrack(videoTrack, localStream);
         }
-        console.log("Resolving stored pendingOffer after startMedia completed...");
-        await handleOffer(pendingOffer);
-        pendingOffer = null;
       }
 
-      // Resolve pendingAccept queue if the caller's hardware was slow
-      if (pendingAccept && !isCallInitiated) {
-        console.log("Resolving stored pendingAccept after startMedia completed...");
-        isCallConnected = true;
-        isCallInitiated = true;
-        initiateCall();
-        pendingAccept = false;
-      }
-
-      // Unblock browser autoplay blocking
       document.body.addEventListener('click', () => {
         if (remoteVideo.paused && remoteVideo.srcObject) {
           remoteVideo.play().catch(e => console.log("Autoplay unblock failed:", e));
@@ -518,6 +505,14 @@
         if (state === 'ringing') {
           const timerEl = document.getElementById('callTimer');
           if (timerEl) timerEl.textContent = "Ringing...";
+          
+          try { 
+            if (!outgoingAudio) {
+              outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+              outgoingAudio.loop = true;
+            }
+            outgoingAudio.play(); 
+          } catch (e) { console.log("Outgoing play blocked:", e); }
         }
         console.log("Waiting for receiver, sending caller_ready ping...");
         ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
@@ -527,8 +522,8 @@
         ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
       }
       
-      // Initialize hardware concurrently with signaling
-      await startMedia();
+      // Initialize hardware concurrently with signaling, BUT NO AWAIT!
+      startMedia();
     };
 
     ws.onmessage = async (event) => {
@@ -547,14 +542,9 @@
         const timerEl = document.getElementById('callTimer');
         if (timerEl) timerEl.textContent = "00:00";
         if (!isCallInitiated) {
-           if (localStream) {
              isCallConnected = true;
              isCallInitiated = true;
              initiateCall();
-           } else {
-             console.log("Hardware not ready yet, queuing pendingAccept...");
-             pendingAccept = true;
-           }
         }
       } else if (data.event === 'caller_ready') {
         // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!
@@ -579,20 +569,6 @@
     async function createPeerConnection() {
       console.log("Creating RTCPeerConnection...");
       peerConnection = new RTCPeerConnection(servers);
-
-      // Add local stream tracks to PeerConnection strictly before offer/answer
-      if (localStream && peerConnection) {
-        const senders = peerConnection.getSenders();
-        const hasTracks = senders.length > 0;
-        if (!hasTracks) {
-          localStream.getTracks().forEach(track => {
-            console.log("Adding track to peer connection:", track.kind);
-            peerConnection.addTrack(track, localStream);
-          });
-        }
-      } else if (!localStream) {
-        console.warn("No localStream available to add tracks!");
-      }
 
       // Remote stream track added
       peerConnection.ontrack = (event) => {
@@ -660,53 +636,51 @@
     async function initiateCall() {
       console.log("Initiating call offer...");
       await createPeerConnection();
-      if (localStream && peerConnection) {
-        const senders = peerConnection.getSenders();
-        const hasTracks = senders.length > 0;
-        if (!hasTracks) {
-          localStream.getTracks().forEach(track => {
-            console.log("Adding track to peer connection:", track.kind);
-            peerConnection.addTrack(track, localStream);
-          });
-        }
+      
+      const audioTrans = peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+      const videoTrans = peerConnection.addTransceiver('video', { direction: 'sendrecv' });
+
+      if (localStream) {
+        if (localStream.getAudioTracks().length > 0) audioTrans.sender.replaceTrack(localStream.getAudioTracks()[0]);
+        if (localStream.getVideoTracks().length > 0) videoTrans.sender.replaceTrack(localStream.getVideoTracks()[0]);
       }
+
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       console.log("Local offer set and sending...");
       ws.send(JSON.stringify({ offer: offer }));
-      
-      try { 
-        if (!outgoingAudio) {
-          outgoingAudio = new Audio('./sounds/caller_tune.mp3');
-          outgoingAudio.loop = true;
-        }
-        outgoingAudio.play(); 
-      } catch (e) { console.log("Outgoing play blocked:", e); }
     }
 
 
     async function handleOffer(offer) {
-      if (!localStream) {
-        console.log("localStream is not initialized yet. Storing offer in pendingOffer...");
-        pendingOffer = offer;
-        return;
-      }
       console.log("Received remote offer, processing...");
       isCallConnected = true;
       if (!peerConnection) {
         await createPeerConnection();
       }
-      if (localStream && peerConnection) {
-        const senders = peerConnection.getSenders();
-        const hasTracks = senders.length > 0;
-        if (!hasTracks) {
-          localStream.getTracks().forEach(track => {
-            console.log("Adding track to peer connection:", track.kind);
-            peerConnection.addTrack(track, localStream);
-          });
+      
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      
+      // Force transceivers to sendrecv so the answer allows future tracks via replaceTrack
+      peerConnection.getTransceivers().forEach(t => {
+        t.direction = 'sendrecv';
+      });
+
+      if (localStream) {
+        const transceivers = peerConnection.getTransceivers();
+        
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          const audioTrans = transceivers.find(t => t.receiver && t.receiver.track && t.receiver.track.kind === 'audio') || transceivers[0];
+          if (audioTrans && audioTrans.sender.replaceTrack) audioTrans.sender.replaceTrack(audioTrack);
+        }
+
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          const videoTrans = transceivers.find(t => t.receiver && t.receiver.track && t.receiver.track.kind === 'video') || transceivers[1];
+          if (videoTrans && videoTrans.sender.replaceTrack) videoTrans.sender.replaceTrack(videoTrack);
         }
       }
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       await processQueuedIceCandidates(); // Process early ICE candidates
 
       const answer = await peerConnection.createAnswer();

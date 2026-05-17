@@ -306,6 +306,7 @@
     let seconds = 0;
     const timerEl = document.getElementById('callTimer');
     let timerInterval = setInterval(() => {
+      if (timerEl.textContent === "Ringing..." || timerEl.textContent === "Connecting...") return;
       seconds++;
       const m = Math.floor(seconds / 60).toString().padStart(2, '0');
       const s = (seconds % 60).toString().padStart(2, '0');
@@ -377,40 +378,27 @@
 
     async function startMedia() {
       try {
-        // STRICT CONSTRAINT FOR AUDIO ONLY
         console.log("Acquiring hardware-tuned high-clarity audio stream...");
         localStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }, 
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
             video: false 
         });
+        
+        // Attach track instantly if connection is already forming
+        if (peerConnection) {
+          const senders = peerConnection.getSenders();
+          const audioSender = senders.find(s => s.track === null || (s.track && s.track.kind === 'audio'));
+          if (audioSender && audioSender.replaceTrack && localStream.getAudioTracks().length > 0) {
+            audioSender.replaceTrack(localStream.getAudioTracks()[0]);
+          }
+        }
       } catch (err) {
         console.error("Failed to acquire media:", err);
-        alert("Could not access microphone. Please enable permissions.");
-      }
-
-      if (localStream && pendingOffer) {
-        await createPeerConnection();
-        await handleOffer(pendingOffer);
-        pendingOffer = null;
-      }
-
-      // Resolve pendingAccept queue if the caller's hardware was slow
-      if (pendingAccept && !isCallInitiated) {
-        console.log("Resolving stored pendingAccept after startMedia completed...");
-        isCallInitiated = true;
-        initiateCall();
-        pendingAccept = false;
       }
 
       // Trigger browser audio autoplay unlock
       document.body.addEventListener('click', () => {
-        if (remoteAudio.paused && remoteAudio.srcObject) {
-          safePlayAudio();
-        }
+        if (remoteAudio.paused && remoteAudio.srcObject) safePlayAudio();
       }, { once: true });
     }
 
@@ -421,18 +409,29 @@
       console.log("Call room connected via WebSocket.");
       setStatusText("Initializing WebRTC...", "#FFC700");
       const mode = urlParams.get('mode');
+      const state = urlParams.get('state');
 
-      // 🔥 Send ready signals IMMEDIATELY so we don't wait for hardware before signaling!
       if (mode === 'caller') {
+        if (state === 'ringing') {
+          const timerEl = document.getElementById('callTimer');
+          if (timerEl) timerEl.textContent = "Ringing...";
+          
+          try { 
+            if (!outgoingAudio) {
+              outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+              outgoingAudio.loop = true;
+            }
+            outgoingAudio.play(); 
+          } catch (e) { console.log("Outgoing play blocked:", e); }
+        }
         console.log("Waiting for receiver, sending caller_ready ping...");
         ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
       } else {
-        // Receiver notifies system they are ready for offer
         ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
       }
 
-      // Initialize hardware concurrently with signaling
-      await startMedia();
+      // Initialize hardware in background WITHOUT blocking signaling!
+      startMedia();
     };
 
     ws.onmessage = async (event) => {
@@ -441,15 +440,11 @@
         console.log("WS Event:", data.event || "SDP/ICE");
 
         if (data.event === 'receiver_ready') {
-          // For caller: now safe to generate offer. Prevent duplicate offers if already negotiating.
-          if (!isCallInitiated && (!peerConnection || peerConnection.signalingState === "stable")) {
-             if (localStream) {
-               isCallInitiated = true;
-               initiateCall();
-             } else {
-               console.log("Hardware not ready yet, queuing pendingAccept...");
-               pendingAccept = true;
-             }
+          const tEl = document.getElementById('callTimer');
+          if (tEl) tEl.textContent = "00:00";
+          if (!isCallInitiated) {
+             isCallInitiated = true;
+             initiateCall();
           }
         } else if (data.event === 'caller_ready') {
           // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!
@@ -504,18 +499,6 @@
         }
       };
 
-      // REINFORCEMENT GATE 1: Secure immediate local track binding
-      if (localStream && peerConnection) {
-        const senders = peerConnection.getSenders();
-        const hasTracks = senders.length > 0;
-        if (!hasTracks) {
-          localStream.getTracks().forEach(track => {
-            console.log("Binding local audio path explicitly to listener sequence:", track.kind);
-            peerConnection.addTrack(track, localStream);
-          });
-        }
-      }
-
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
           ws.send(JSON.stringify({ candidate: event.candidate }));
@@ -555,58 +538,43 @@
       console.log("Triggering authoritative offer creation cascade...");
       if (!peerConnection) await createPeerConnection();
 
-      // REINFORCEMENT GATE 2: Verify stream linkage nanoseconds before offer
-      if (localStream && peerConnection) {
-        const senders = peerConnection.getSenders();
-        if (senders.length === 0) {
-          localStream.getTracks().forEach(track => {
-            console.log("Redundant bind executed at calling event step.");
-            peerConnection.addTrack(track, localStream);
-          });
-        }
+      // Pre-allocate audio transceiver slot for instant SDP negotiation
+      const transceiver = peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+      if (localStream && localStream.getAudioTracks().length > 0) {
+        transceiver.sender.replaceTrack(localStream.getAudioTracks()[0]);
       }
 
-      const offer = await peerConnection.createOffer({ offerToReceiveAudio: true });
+      const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       ws.send(JSON.stringify({ offer: offer }));
       
-      try { 
-        if (!outgoingAudio) {
-          outgoingAudio = new Audio('./sounds/caller_tune.mp3');
-          outgoingAudio.loop = true;
-        }
-        outgoingAudio.play(); 
-      } catch (e) { console.log("Outgoing play blocked:", e); }
-      
-      setStatusText("Ringing...", "#FFC700");
+      setStatusText("Connecting...", "#FFC700");
     }
 
     async function handleOffer(offer) {
-      if (!localStream) {
-        console.log("Suspending offer reception: Missing local hardware stream handler.");
-        pendingOffer = offer;
-        return;
-      }
       console.log("Decompressing remote offer payload stream map...");
       if (!peerConnection) await createPeerConnection();
 
-      // REINFORCEMENT GATE 3: Secure total symmetry on answer propagation
-      if (localStream && peerConnection) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+      // Force transceivers to sendrecv so the answer allows future tracks via replaceTrack
+      peerConnection.getTransceivers().forEach(t => {
+        if (t.receiver && t.receiver.track && t.receiver.track.kind === 'audio') {
+          t.direction = 'sendrecv';
+        }
+      });
+
+      if (localStream && localStream.getAudioTracks().length > 0) {
         const senders = peerConnection.getSenders();
-        if (senders.length === 0) {
-          localStream.getTracks().forEach(track => {
-            console.log("Locking local listener onto incoming answering channel.");
-            peerConnection.addTrack(track, localStream);
-          });
+        const audioSender = senders.find(s => !s.track || s.track.kind === 'audio');
+        if (audioSender && audioSender.replaceTrack) {
+          audioSender.replaceTrack(localStream.getAudioTracks()[0]);
         }
       }
-
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       await flushIceQueue();
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
       ws.send(JSON.stringify({ answer: answer }));
-      stopAllRinging();
       setStatusText("Connecting...", "#FFC700");
     }
 

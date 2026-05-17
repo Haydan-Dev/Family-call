@@ -1351,7 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setTimeout(() => {
           const callIdParam = callId ? `&call_id=${callId}` : '';
-          window.location.href = `outgoing_call_ringing_screen.html?room_id=${roomId}&name=${encodeURIComponent(recipientName)}${callIdParam}`;
+          window.location.href = `audio_activecall.html?room_id=${roomId}&mode=caller&call_type=audio&name=${encodeURIComponent(recipientName)}&state=ringing${callIdParam}`;
         }, 200);
       });
     });
