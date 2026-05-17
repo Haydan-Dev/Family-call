@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Verify Email — Hamnasheen</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="static/css/style.css">
+<script src="static/js/auth_guard.js"></script>
+<style>
+  /* Extra glassmorphic styles specifically for high-fidelity OTP input */
+  .otp-container {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin: 25px 0;
+  }
+  .otp-input {
+    width: 45px;
+    height: 52px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(255, 199, 0, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 700;
+    text-align: center;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .otp-input:focus {
+    border-color: #FFC700;
+    background: rgba(255, 199, 0, 0.05);
+    box-shadow: 0 0 15px rgba(255, 199, 0, 0.2), inset 0 2px 4px rgba(0,0,0,0.2);
+    transform: scale(1.05);
+  }
+  .resend-text {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    margin-top: 15px;
+    text-align: center;
+  }
+  .resend-link {
+    color: #FFC700;
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .resend-link.disabled {
+    color: rgba(255,255,255,0.3);
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  
+  /* Step Transitions and Success Animations */
+  .auth-step {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .hidden-step {
+    display: none !important;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  
+  /* Success Checkmark Circle Graphic */
+  .success-checkmark {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    background: rgba(37, 211, 102, 0.1);
+    border: 2px solid #25D366;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: scaleUp 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  }
+  .success-checkmark svg {
+    width: 40px;
+    height: 40px;
+    stroke: #25D366;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: dash 0.9s 0.3s ease-in-out forwards;
+  }
+  @keyframes scaleUp {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes dash {
+    to { stroke-dashoffset: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="splash">
+
+  <!-- STEP 1: Enter OTP -->
+  <div class="center auth-step" id="stepVerify">
+    <div class="logo-wrap">
+      <div class="logo">
+        <svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M36 6 L6 28 H14 V64 H58 V28 H66 Z" stroke="#FFC700" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+          <circle cx="36" cy="38" r="8" stroke="#FFC700" stroke-width="2" fill="none"/>
+          <path d="M36 46 V54" stroke="#FFC700" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+    <h1 class="name">Ham<em>nasheen</em></h1>
+    <p class="tagline">Verify Your Email</p>
+    <div class="line"></div>
+    
+    <p style="font-size: 14px; color: rgba(255,255,255,0.7); line-height: 1.6; margin: 15px 24px 5px; text-align: center;">
+      We sent a 6-digit security code to<br>
+      <strong id="emailDisplay" style="color: #FFC700; font-weight: 600;">your email</strong>
+    </p>
+
+    <div class="form-container" style="margin-top: 15px;">
+      <div class="otp-container">
+        <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" required />
+        <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" required />
+        <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" required />
+        <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" required />
+        <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" required />
+        <input type="text" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" required />
+      </div>
+
+      <p class="resend-text">
+        Didn't receive code? 
+        <span class="resend-link disabled" id="resendBtn">Resend (30s)</span>
+      </p>
+
+      <button type="button" class="btn-primary" id="submitBtn" style="margin-top: 25px;">Verify & Continue</button>
+      <a href="signup.html" class="btn-secondary">Change Email</a>
+    </div>
+  </div>
+
+  <!-- STEP 2: Success Screen -->
+  <div class="center auth-step hidden-step" id="stepSuccess">
+    <div class="success-checkmark">
+      <svg viewBox="0 0 24 24">
+        <path d="M20 6L9 17L4 12" />
+      </svg>
+    </div>
+    <h1 class="name">Ham<em>nasheen</em></h1>
+    <p class="tagline" style="color: #25D366;">Email Verified Successfully!</p>
+    <div class="line" style="background: linear-gradient(90deg, transparent, #25D366, transparent);"></div>
+    
+    <p style="font-size: 14px; color: rgba(255,255,255,0.75); line-height: 1.6; margin: 20px 24px; text-align: center;">
+      Welcome to your family sandbox. Your connection is fully secure and verified.
+    </p>
+
+    <button type="button" class="btn-primary" id="successRedirectBtn" style="margin-top: 15px;">Enter Dashboard</button>
+  </div>
+
+</div>
+
+<script src="static/js/config.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Parse email parameter from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const email = urlParams.get('email');
+  
+  if (!email) {
+    alert("Invalid access. Please register first.");
+    window.location.href = "signup.html";
+    return;
+  }
+  
+  document.getElementById('emailDisplay').textContent = email;
+
+  // OTP inputs auto-focus logic
+  const inputs = document.querySelectorAll('.otp-input');
+  inputs.forEach((input, index) => {
+    input.addEventListener('input', (e) => {
+      const val = e.target.value;
+      if (val.length === 1 && index < inputs.length - 1) {
+        inputs[index + 1].focus();
+      }
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !e.target.value && index > 0) {
+        inputs[index - 1].focus();
+      }
+    });
+
+    // Clipboard paste handler
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text');
+      if (text.length === 6 && /^\d+$/.test(text)) {
+        inputs.forEach((inp, idx) => {
+          inp.value = text[idx];
+        });
+        inputs[5].focus();
+      }
+    });
+  });
+
+  // Resend OTP logic
+  let resendSeconds = 30;
+  const resendBtn = document.getElementById('resendBtn');
+  let countdownTimer;
+
+  const startCountdown = () => {
+    resendBtn.classList.add('disabled');
+    resendSeconds = 30;
+    resendBtn.textContent = `Resend (${resendSeconds}s)`;
+    
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      resendSeconds--;
+      if (resendSeconds <= 0) {
+        clearInterval(countdownTimer);
+        resendBtn.textContent = "Resend Code";
+        resendBtn.classList.remove('disabled');
+      } else {
+        resendBtn.textContent = `Resend (${resendSeconds}s)`;
+      }
+    }, 1000);
+  };
+
+  startCountdown();
+
+  resendBtn.addEventListener('click', async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/auth/resend-signup-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      
+      if (response.ok) {
+        alert("A new verification code has been sent to your email.");
+        startCountdown();
+      } else {
+        const errorData = await response.json();
+        alert('Resend failed: ' + (errorData.detail || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error connecting to server.');
+    }
+  });
+
+  // Verify OTP submission
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.addEventListener('click', async () => {
+    let code = "";
+    inputs.forEach(inp => code += inp.value);
+    
+    if (code.length !== 6) {
+      alert("Please enter the complete 6-digit code.");
+      return;
+    }
+
+    submitBtn.textContent = "Verifying...";
+    submitBtn.disabled = true;
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/auth/verify-signup-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Save JWT to localStorage
+        localStorage.setItem('token', data.access_token);
+        
+        // Success Transition
+        document.getElementById('stepVerify').classList.add('hidden-step');
+        setTimeout(() => {
+          document.getElementById('stepSuccess').classList.remove('hidden-step');
+        }, 300);
+      } else {
+        const errorData = await response.json();
+        alert('Verification failed: ' + (errorData.detail || 'Invalid verification code. Please try again.'));
+        inputs.forEach(inp => {
+          inp.value = "";
+          inp.style.borderColor = "#c0392b";
+        });
+        inputs[0].focus();
+        setTimeout(() => {
+          inputs.forEach(inp => inp.style.borderColor = "");
+        }, 1500);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error connecting to server.');
+    } finally {
+      submitBtn.textContent = "Verify & Continue";
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('successRedirectBtn').addEventListener('click', () => {
+    window.location.href = "home.html";
+  });
+});
+</script>
+
+</body>
+</html>

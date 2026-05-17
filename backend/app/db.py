@@ -17,6 +17,7 @@ async def connect_to_mongo():
         
         # Indexing yahan karenge taaki server start hote hi lag jaye
         await db.users.create_index([("email", 1)], unique=True)
+        await db.otp_codes.create_index([("created_at", 1)], expireAfterSeconds=300)
     except Exception as e:
         print(f"Database Connection Failed: {e}")
 

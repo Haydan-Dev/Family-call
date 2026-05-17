@@ -5,6 +5,7 @@ from app.db import connect_to_mongo, close_mongo_connection
 
 # Routers import (Tere wale same rahenge)
 from app.routes.authroute import router  as user_router
+from app.routes.auth import router as auth_otp_router
 from app.routes.contactroutes import router as contact_router
 from app.routes.conversationsroutes import router as conversation_router
 from app.routes.messageroutes import router as message_router
@@ -35,6 +36,7 @@ def Home():
 
 # Tere saare include_router same rahenge
 app.include_router(user_router)
+app.include_router(auth_otp_router)
 app.include_router(contact_router)  
 app.include_router(conversation_router)
 app.include_router(message_router)
