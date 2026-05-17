@@ -385,17 +385,19 @@
     const callId = urlParams.get('call_id');
 
     // ── Global Ringing Audio Objects ──
-    const incomingAudio = new Audio('./sounds/ringtone.mp3');
-    const outgoingAudio = new Audio('./sounds/caller_tune.mp3');
-    incomingAudio.loop = true;
-    outgoingAudio.loop = true;
+    let incomingAudio = null;
+    let outgoingAudio = null;
 
     function stopAllRinging() {
       try {
-        incomingAudio.pause();
-        incomingAudio.currentTime = 0;
-        outgoingAudio.pause();
-        outgoingAudio.currentTime = 0;
+        if (incomingAudio) {
+          incomingAudio.pause();
+          incomingAudio.currentTime = 0;
+        }
+        if (outgoingAudio) {
+          outgoingAudio.pause();
+          outgoingAudio.currentTime = 0;
+        }
       } catch (e) {
         console.log("Audio stop failed:", e);
       }
@@ -511,8 +513,7 @@
       const mode = urlParams.get('mode');
       const state = urlParams.get('state');
 
-      await startMedia();
-
+      // 🔥 Send ready signals IMMEDIATELY so we don't wait for hardware before signaling!
       if (mode === 'caller') {
         if (state === 'ringing') {
           const timerEl = document.getElementById('callTimer');
@@ -522,9 +523,12 @@
         ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
       } else {
         // Receiver notifies system they are ready for offer
-        console.log("Receiver media started, sending ready signal.");
+        console.log("Receiver signaling ready before media starts.");
         ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
       }
+      
+      // Initialize hardware concurrently with signaling
+      await startMedia();
     };
 
     ws.onmessage = async (event) => {
@@ -559,9 +563,9 @@
            console.log("Caller pinged, echoing receiver_ready...");
            ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
         }
-      } else if (data.offer) {
-        try { incomingAudio.play(); } catch (e) { console.log("Incoming play blocked:", e); }
-        await handleOffer(data.offer);
+        } else if (data.offer) {
+          // We are receiver, we don't need to play incoming ringtone here because we already clicked Accept
+          await handleOffer(data.offer);
       } else if (data.answer) {
 
         await handleAnswer(data.answer);
@@ -670,7 +674,14 @@
       await peerConnection.setLocalDescription(offer);
       console.log("Local offer set and sending...");
       ws.send(JSON.stringify({ offer: offer }));
-      try { outgoingAudio.play(); } catch (e) { console.log("Outgoing play blocked:", e); }
+      
+      try { 
+        if (!outgoingAudio) {
+          outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+          outgoingAudio.loop = true;
+        }
+        outgoingAudio.play(); 
+      } catch (e) { console.log("Outgoing play blocked:", e); }
     }
 
 

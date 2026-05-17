@@ -339,17 +339,19 @@
     const remoteAudio = document.getElementById('remoteAudio');
 
     // ── Global Ringing Audio Objects ──
-    const incomingAudio = new Audio('./sounds/ringtone.mp3');
-    const outgoingAudio = new Audio('./sounds/caller_tune.mp3');
-    incomingAudio.loop = true;
-    outgoingAudio.loop = true;
+    let incomingAudio = null;
+    let outgoingAudio = null;
 
     function stopAllRinging() {
       try {
-        incomingAudio.pause();
-        incomingAudio.currentTime = 0;
-        outgoingAudio.pause();
-        outgoingAudio.currentTime = 0;
+        if (incomingAudio) {
+          incomingAudio.pause();
+          incomingAudio.currentTime = 0;
+        }
+        if (outgoingAudio) {
+          outgoingAudio.pause();
+          outgoingAudio.currentTime = 0;
+        }
       } catch (e) {
         console.log("Audio stop failed:", e);
       }
@@ -420,8 +422,7 @@
       setStatusText("Initializing WebRTC...", "#FFC700");
       const mode = urlParams.get('mode');
 
-      await startMedia();
-
+      // 🔥 Send ready signals IMMEDIATELY so we don't wait for hardware before signaling!
       if (mode === 'caller') {
         console.log("Waiting for receiver, sending caller_ready ping...");
         ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
@@ -429,6 +430,9 @@
         // Receiver notifies system they are ready for offer
         ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
       }
+
+      // Initialize hardware concurrently with signaling
+      await startMedia();
     };
 
     ws.onmessage = async (event) => {
@@ -459,7 +463,7 @@
           terminateCall();
 
         } else if (data.offer) {
-          try { incomingAudio.play(); } catch (e) { console.log("Incoming play blocked:", e); }
+          // We are receiver, we don't need to play incoming ringtone here because we already clicked Accept
           await handleOffer(data.offer);
         } else if (data.answer) {
 
@@ -565,7 +569,15 @@
       const offer = await peerConnection.createOffer({ offerToReceiveAudio: true });
       await peerConnection.setLocalDescription(offer);
       ws.send(JSON.stringify({ offer: offer }));
-      try { outgoingAudio.play(); } catch (e) { console.log("Outgoing play blocked:", e); }
+      
+      try { 
+        if (!outgoingAudio) {
+          outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+          outgoingAudio.loop = true;
+        }
+        outgoingAudio.play(); 
+      } catch (e) { console.log("Outgoing play blocked:", e); }
+      
       setStatusText("Ringing...", "#FFC700");
     }
 

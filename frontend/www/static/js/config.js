@@ -1,17 +1,20 @@
-// Configuration
-// const SERVER_IP = "192.168.1.4"; // Default to localhost, easily changeable
-// const PORT = 8000;
-// const BASE_URL = `http://${SERVER_IP}:${PORT}`;
-// const WS_URL = `ws://${SERVER_IP}:${PORT}`;
+// Cloudflare Tunnel Testing Configuration
+const TUNNEL_DOMAIN = "perhaps-proposition-metadata-amplifier.trycloudflare.com";
+
+// NO Port numbers here! Cloudflare handles it automatically.
+const BASE_URL = `https://${TUNNEL_DOMAIN}`; // Secure Fetch
+const WS_URL = `wss://${TUNNEL_DOMAIN}`;     // MUST be wss:// for Cloudflare!
+
+console.log("🚀 Cloudflare Testing via:", WS_URL);
 
 
-/// Cloudflare hata diya, Tailscale Funnel Zindabad!
-const TUNNEL_DOMAIN = "abu-hurairah.tail6c8cb6.ts.net";
-const BASE_URL = `https://${TUNNEL_DOMAIN}`; // HTTPS for Secure Fetch
-const WS_URL = `wss://${TUNNEL_DOMAIN}`;     // WSS for Secure WebSockets
+// /// Cloudflare hata diya, Tailscale Funnel Zindabad!
+// const TUNNEL_DOMAIN = "abu-hurairah.tail6c8cb6.ts.net";
+// const BASE_URL = `https://${TUNNEL_DOMAIN}`; // HTTPS for Secure Fetch
+// const WS_URL = `wss://${TUNNEL_DOMAIN}`;     // WSS for Secure WebSockets
 
-// Ye ensure karta hai ki WebRTC signaling block na ho
-console.log("🚀 Signaling via Tunnel:", WS_URL);
+// // Ye ensure karta hai ki WebRTC signaling block na ho
+// console.log("🚀 Signaling via Tunnel:", WS_URL);
 
 // Global Authenticated Fetch Wrapper
 async function authFetch(url, options = {}) {

@@ -111,18 +111,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Global Audio Objects ──
   const messageSound = new Audio('./sounds/notification.mp3');
-  const incomingAudio = new Audio('./sounds/ringtone.mp3');
-  const outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+  let incomingAudio = null;
+  let outgoingAudio = null;
   messageSound.loop = false;
-  incomingAudio.loop = true;
-  outgoingAudio.loop = true;
 
   function stopAllRinging() {
     try {
-      incomingAudio.pause();
-      incomingAudio.currentTime = 0;
-      outgoingAudio.pause();
-      outgoingAudio.currentTime = 0;
+      if (incomingAudio) {
+        incomingAudio.pause();
+        incomingAudio.currentTime = 0;
+      }
+      if (outgoingAudio) {
+        outgoingAudio.pause();
+        outgoingAudio.currentTime = 0;
+      }
     } catch (e) {
       console.log("Audio stop failed:", e);
     }
@@ -167,8 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
     unlocker.play().catch(() => {});
     // Also try to 'resume' the existing objects if they were blocked
     if (typeof messageSound !== 'undefined') {
-       [messageSound, incomingAudio, outgoingAudio].forEach(a => {
-         a.play().then(() => { a.pause(); }).catch(() => {});
+       [messageSound].forEach(a => {
+         if(a) a.play().then(() => { a.pause(); }).catch(() => {});
        });
     }
   }, { once: true });
@@ -718,7 +720,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = JSON.parse(event.data);
 
         if (payload.event === 'incoming_call') {
-          try { incomingAudio.play(); } catch (e) { console.log("Ringing blocked:", e); }
+          if (payload.call_type !== 'audio') {
+            try { 
+              if (!incomingAudio) {
+                incomingAudio = new Audio('./sounds/ringtone.mp3');
+                incomingAudio.loop = true;
+              }
+              incomingAudio.play(); 
+            } catch (e) { console.log("Ringing blocked:", e); }
+          }
           if (payload.call_type === 'audio') {
             // Strict Audio Flow Redirect for Receiver
             window.location.href = `audio_incommingcall.html?room_id=${payload.room_id}&caller_name=${encodeURIComponent(payload.caller_name || 'Family')}`;
