@@ -36,7 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- STRANGER DANGER BANNER LOGIC ---
   const strangerBanner = document.getElementById('strangerBanner');
   const isContact = urlParams.get('is_contact') === 'true';
-  const otherEmail = urlParams.get('email');
+  let otherEmail = urlParams.get('email');
+  let otherName = urlParams.get('name') || '';
 
   if (strangerBanner && !isContact && roomId && roomId !== 'global') {
     strangerBanner.classList.remove('hidden');
@@ -53,15 +54,18 @@ document.addEventListener('DOMContentLoaded', () => {
   if (addContactBtn) {
     addContactBtn.addEventListener('click', async () => {
       try {
+        const payloadName = otherName && otherName !== 'Unknown User' ? otherName : (otherEmail ? otherEmail.split('@')[0] : 'Unknown');
+        const payloadEmail = otherEmail && otherEmail !== 'Unknown' ? otherEmail : 'unknown@email.com';
+        
         const res = await authFetch(`${BASE_URL}/contacts/save`, {
           method: 'POST',
           body: JSON.stringify({
-            contact_email: otherEmail,
-            contact_nickname: otherEmail.split('@')[0]
+            contact_email: payloadEmail,
+            contact_nickname: payloadName
           })
         });
         if (res.ok) {
-          showToast("Contact Added!");
+          showToast("Contact Saved Instantly!");
           strangerBanner.classList.add('hidden');
         } else {
           showToast("Failed to add contact");
@@ -166,12 +170,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // We unlock the AudioContext on the first click.
   document.body.addEventListener('click', () => {
     const unlocker = new Audio();
-    unlocker.play().catch(() => {});
+    unlocker.play().catch(() => { });
     // Also try to 'resume' the existing objects if they were blocked
     if (typeof messageSound !== 'undefined') {
-       [messageSound].forEach(a => {
-         if(a) a.play().then(() => { a.pause(); }).catch(() => {});
-       });
+      [messageSound].forEach(a => {
+        if (a) a.play().then(() => { a.pause(); }).catch(() => { });
+      });
     }
   }, { once: true });
 
@@ -184,6 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await authFetch(`${BASE_URL}/messages/history/${roomId}`, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
+        
+        if (data.contact_email) otherEmail = data.contact_email;
+        if (data.contact_name) otherName = data.contact_name;
+        
         // Priority to 'Chat', then standard fallback arrays
         const messages = Array.isArray(data) ? data : (data.Chat || data.messages || data.data || []);
         renderMessages(messages);
@@ -721,12 +729,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (payload.event === 'incoming_call') {
           if (payload.call_type !== 'audio') {
-            try { 
+            try {
               if (!incomingAudio) {
                 incomingAudio = new Audio('./sounds/ringtone.mp3');
                 incomingAudio.loop = true;
               }
-              incomingAudio.play(); 
+              incomingAudio.play();
             } catch (e) { console.log("Ringing blocked:", e); }
           }
           if (payload.call_type === 'audio') {
@@ -1398,4 +1406,4 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-});
+});

@@ -2,15 +2,15 @@ import datetime as dt
 from bson import ObjectId
 from app.models.message import Message
 
-async def create_message_db(db, conversation_id: str, sender_id: str, message_data: Message) -> bool:
+async def create_message_db(db, conversation_id: str, sender_id: str, message_data: Message) -> str | None:
     """
     Validates room and inserts a new message.
-    Returns True on success, False if validation fails.
+    Returns the string ID of the inserted message on success, None if validation fails.
     """
     chat_id = ObjectId(conversation_id)
     search_result = await db.conversations.find_one({"_id": chat_id, "participant_ids": sender_id})
     if not search_result:
-        return False
+        return None
         
     insert_result = await db.messages.insert_one(message_data.model_dump())
     if insert_result.inserted_id:
@@ -21,8 +21,8 @@ async def create_message_db(db, conversation_id: str, sender_id: str, message_da
                 "last_message_at": message_data.created_at
             }}
         )
-        return True
-    return False
+        return str(insert_result.inserted_id)
+    return None
 
 async def get_history_db(db, conversation_id: str, sender_id: str) -> list | None:
     """

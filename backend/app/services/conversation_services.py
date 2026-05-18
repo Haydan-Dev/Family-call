@@ -108,7 +108,13 @@ async def search_conversation_db(db, user_id: str, fetch_archived: bool = False)
         
         if other_user_id:
             try:
-                other_user = await db.users.find_one({"_id": ObjectId(other_user_id)})
+                other_user = await db.users.find_one({"_id": other_user_id})
+                if not other_user:
+                    try:
+                        other_user = await db.users.find_one({"_id": ObjectId(other_user_id)})
+                    except Exception:
+                        pass
+                        
                 if other_user:
                     other_email = other_user.get("email")
                     contact_doc = None

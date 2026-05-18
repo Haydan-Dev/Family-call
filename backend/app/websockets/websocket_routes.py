@@ -84,12 +84,16 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
             except Exception:
                 continue
                 
-            success = await create_message_db(db, room_id, user_id, full_message)
+            message_id = await create_message_db(db, room_id, user_id, full_message)
             
-            if success:
+            if message_id:
                 sender_name = "Unknown"
                 try:
-                    sender_user = await db.users.find_one({"_id": ObjectId(user_id)})
+                    sender_user = await db.users.find_one({"_id": user_id})
+                    if not sender_user:
+                        try:
+                            sender_user = await db.users.find_one({"_id": ObjectId(user_id)})
+                        except: pass
                     if sender_user:
                         sender_name = sender_user.get("full_name", "Unknown")
                 except Exception:
@@ -98,6 +102,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                 # Send confirmation to sender
                 await manager.send_personal_message({
                     "event": "new_message_sent", 
+                    "message_id": message_id,
                     "room_id": room_id,
                     "content": full_message.content,
                     "sender_id": user_id,
@@ -109,6 +114,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                 if recipient_id and recipient_id != user_id:
                     await manager.send_personal_message({
                         "event": "new_message", 
+                        "message_id": message_id,
                         "room_id": room_id,
                         "content": full_message.content,
                         "sender_id": user_id,

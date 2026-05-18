@@ -13,12 +13,12 @@ if (signupForm) {
     submitBtn.disabled = true;
 
     try {
-      const response = await fetch(`${BASE_URL}/api/auth/signup`, {
+      const response = await fetch(`${BASE_URL}/users/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ name, email, password })
+        body: JSON.stringify({ full_name: name, email, password })
       });
 
       if (response.ok) {
@@ -52,7 +52,7 @@ if (loginForm) {
     submitBtn.disabled = true;
 
     try {
-      const response = await fetch(`${BASE_URL}/api/auth/login`, {
+      const response = await fetch(`${BASE_URL}/users/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

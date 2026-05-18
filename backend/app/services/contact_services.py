@@ -67,8 +67,32 @@ async def _get_contact_email_from_room(db, room_id: str, user_id: str) -> str | 
         return None
 
     try:
-        other_user = await db.users.find_one({"_id": ObjectId(other_user_id)})
+        # UUID strings are used, so no ObjectId casting
+        other_user = await db.users.find_one({"_id": other_user_id})
         return other_user.get("email") if other_user else None
+    except Exception:
+        return None
+
+async def _get_contact_info_from_room(db, room_id: str, user_id: str) -> dict | None:
+    """Returns the other participant's email and full_name for a given conversation room_id."""
+    try:
+        room = await db.conversations.find_one({"_id": ObjectId(room_id)})
+    except Exception:
+        return None
+    if not room or "participant_ids" not in room:
+        return None
+
+    participant_ids = room.get("participant_ids", [])
+    other_user_id = next((pid for pid in participant_ids if str(pid) != str(user_id)), None)
+    
+    if not other_user_id:
+        return None
+
+    try:
+        other_user = await db.users.find_one({"_id": other_user_id})
+        if other_user:
+            return {"email": other_user.get("email"), "full_name": other_user.get("full_name")}
+        return None
     except Exception:
         return None
 
@@ -76,7 +100,7 @@ async def _get_contact_email_from_room(db, room_id: str, user_id: str) -> str | 
 async def rename_contact_db(db, user_id: str, room_id: str, new_name: str) -> bool:
     """Update contact_nickname for the contact in this room. Creates contact if missing."""
     # 1. Resolve current user email for logging
-    current_user = await db.users.find_one({"_id": ObjectId(user_id)})
+    current_user = await db.users.find_one({"_id": user_id})
     current_user_email = current_user.get("email") if current_user else "Unknown"
 
     # 2. Identify the other participant's email
