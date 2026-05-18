@@ -1,17 +1,22 @@
 # Note : haydan pls yaar tu har ek comment ko dhyaan se padhna 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.models.user import User,UserLogin
 from app.db import get_database
 from app.core.security import PasswordHelper 
 from app.utils.validators import Check_password
-from fastapi import HTTPException
 import bcrypt
 from pymongo.errors import DuplicateKeyError
 import datetime as dt
 import logging
+import uuid
 
 from jose import jwt
 from app.core.config import settings
+
+# Imports for OTP Verification Flow
+from pydantic import BaseModel, EmailStr
+from app.services.email_service import send_otp_email
+from app.utils.helpers import generate_otp
 
 logger = logging.getLogger(__name__)
 
@@ -22,35 +27,105 @@ router = APIRouter(
 
 db = get_database()
 
+class VerifyOTPRequest(BaseModel):
+    email: EmailStr
+    code: str
+
 @router.post("/signup")
-async def signup(user_data:User):
+async def signup(user_data:User, background_tasks: BackgroundTasks):
     user_data.email = user_data.email.lower()
-    user_dict = user_data.model_dump()
-    Check_password(user_dict["password"])
+    Check_password(user_data.password)
     try:
-        user_dict["password"] = PasswordHelper.hash_password(user_dict["password"]) 
+        # Initialize the Full Model to generate all default values
+        full_user = User(
+            full_name=user_data.full_name,
+            email=user_data.email,
+            password=user_data.password,
+            profile_pic_url=user_data.profile_pic_url
+        )
+        
+        # Export & Mutate
+        user_dict = full_user.model_dump()
+        
+        # Inject Secrets
+        user_dict["_id"] = str(uuid.uuid4())
+        user_dict["password"] = PasswordHelper.hash_password(user_data.password)
+        user_dict["is_verified"] = False
+        
+        # Database Insert
         result = await db.users.insert_one(user_dict)
-        user_dict["_id"] = str(result.inserted_id)
         
-        token = {
-            "sub": str(user_dict["_id"]),
-            "exp": dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        }
-        encoded_jwt = jwt.encode(token, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        # OTP logic
+        otp_code = generate_otp()
+        await db.otp_codes.delete_many({"email": user_dict["email"], "purpose": "signup"})
+        await db.otp_codes.insert_one({
+            "email": user_dict["email"],
+            "otp": otp_code,
+            "purpose": "signup",
+            "created_at": dt.datetime.now(dt.timezone.utc)
+        })
         
-        return {"message": "Account created successfully.", "access_token": encoded_jwt, "user_email": user_dict["email"]}
+        # Asynchronously send the verification email
+        background_tasks.add_task(send_otp_email, user_dict["email"], otp_code, "signup")
+        
+        return {"message": "Account created. Please check your email for the OTP."}
     except DuplicateKeyError:
         raise HTTPException(status_code=409, detail="User already exists, please login")
     except Exception as e:
         logger.error(f"System Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error. Check Terminal or Error_Log!")
         
+@router.post("/verify-otp")
+async def verify_otp(data: VerifyOTPRequest):
+    email_lower = data.email.lower()
+    
+    # Check OTP sandbox
+    otp_record = await db.otp_codes.find_one({
+        "email": email_lower,
+        "otp": data.code,
+        "purpose": "signup"
+    })
+    
+    if not otp_record:
+        raise HTTPException(
+            status_code=400,
+            detail="Incorrect or expired verification code."
+        )
+        
+    # Delete verified OTP code
+    await db.otp_codes.delete_one({"_id": otp_record["_id"]})
+    
+    # Mark user as verified
+    user = await db.users.find_one({"email": email_lower})
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User record not found."
+        )
+        
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"is_verified": True}}
+    )
+    
+    # JWT logic from old signup:
+    token = {
+        "sub": str(user["_id"]),
+        "exp": dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    }
+    encoded_jwt = jwt.encode(token, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    
+    return {"message": "Account created successfully.", "access_token": encoded_jwt, "user_email": user["email"]}
+
 @router.post("/login")
 async def login(user_data:UserLogin):
     user_data.email = user_data.email.lower()
     existing_login = await db.users.find_one({"email":user_data.email})
     if not existing_login:
         raise HTTPException(status_code=401,detail="Invalid Email or Password")
+        
+    if not existing_login.get("is_verified"):
+        raise HTTPException(status_code=403, detail="Please verify your email first.")
         
     hash_check = bcrypt.checkpw(user_data.password.encode("utf-8"),existing_login["password"].encode("utf-8"))
     if not hash_check:
