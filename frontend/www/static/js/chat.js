@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const payloadName = otherName && otherName !== 'Unknown User' ? otherName : (otherEmail ? otherEmail.split('@')[0] : 'Unknown');
         const payloadEmail = otherEmail && otherEmail !== 'Unknown' ? otherEmail : 'unknown@email.com';
-        
+
         const res = await authFetch(`${BASE_URL}/contacts/save`, {
           method: 'POST',
           body: JSON.stringify({
@@ -188,10 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await authFetch(`${BASE_URL}/messages/history/${roomId}`, { method: 'GET' });
       if (res.ok) {
         const data = await res.json();
-        
+
         if (data.contact_email) otherEmail = data.contact_email;
         if (data.contact_name) otherName = data.contact_name;
-        
+
         // Priority to 'Chat', then standard fallback arrays
         const messages = Array.isArray(data) ? data : (data.Chat || data.messages || data.data || []);
         renderMessages(messages);
@@ -1406,4 +1406,4 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-});
+});

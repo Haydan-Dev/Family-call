@@ -11,6 +11,11 @@ from app.services.message_services import (
     toggle_pin_db,
     forward_msg_db
 )
+import asyncio
+from firebase_admin import messaging
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/messages",
@@ -30,6 +35,35 @@ async def send_messages(conversation_id: str, message_data: First_Message, user_
     )
     success = await create_message_db(db, conversation_id, user_id, full_message)
     if success:
+        # ── PHASE 3: MESSAGE PUSH NOTIFICATION TRIGGER ──
+        try:
+            room = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if room:
+                participant_ids = room.get("participant_ids", [])
+                receiver_id = next((str(pid) for pid in participant_ids if str(pid) != str(user_id)), None)
+                
+                if receiver_id:
+                    receiver = await db.users.find_one({"_id": receiver_id})
+                    if receiver:
+                        fcm_token = (receiver.get("fcm_tokens") or {}).get("android")
+                        if fcm_token:
+                            def send_msg_push():
+                                try:
+                                    message = messaging.Message(
+                                        notification=messaging.Notification(
+                                            title="New Message",
+                                            body=message_data.content
+                                        ),
+                                        token=fcm_token
+                                    )
+                                    messaging.send(message)
+                                except Exception as e:
+                                    logger.error(f"FCM Message Error: {str(e)}")
+                            
+                            asyncio.create_task(asyncio.to_thread(send_msg_push))
+        except Exception as e:
+            logger.error(f"Push Notification Background Error: {str(e)}")
+        # ────────────────────────────────────────────────
         return {"status": 200, "message": "Message sent successfully"}
     else:
         raise HTTPException(status_code=404, detail="Conversation not found, access denied, or insertion failed")
@@ -81,6 +115,7 @@ async def messages_history(conversation_id: str, user_id: str = Depends(get_curr
 async def delete_messages(message_id: str, user_id: str = Depends(get_current_user_token)):
     participant_ids = await delete_message_db(db, message_id, user_id)
     if participant_ids is not None:
+        from app.websockets.connection_manager import manager
         payload = {
             "event": "MESSAGE_DELETED",
             "message_id": message_id
@@ -92,13 +127,13 @@ async def delete_messages(message_id: str, user_id: str = Depends(get_current_us
     else:
         raise HTTPException(status_code=404, detail="Message Not Found or Unauthorized")
 
-from app.websockets.connection_manager import manager
 
 # PATCH: Edit message content and set is_edited flag
 @router.patch("/edit/{message_id}")
 async def edit_messages(edit_message: Edit_Message, message_id: str, user_id: str = Depends(get_current_user_token)):
     participant_ids = await edit_message_db(db, message_id, user_id, edit_message.content)
     if participant_ids is not None:
+        from app.websockets.connection_manager import manager
         payload = {
             "event": "MESSAGE_EDITED",
             "message_id": message_id,

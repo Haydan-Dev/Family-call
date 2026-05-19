@@ -1,5 +1,5 @@
 # Note : haydan pls yaar tu har ek comment ko dhyaan se padhna 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Header
 from app.models.user import User,UserLogin
 from app.db import get_database
 from app.core.security import PasswordHelper 
@@ -10,7 +10,7 @@ import datetime as dt
 import logging
 import uuid
 
-from jose import jwt
+from jose import jwt, JWTError
 from app.core.config import settings
 
 # Imports for OTP Verification Flow
@@ -30,6 +30,9 @@ db = get_database()
 class VerifyOTPRequest(BaseModel):
     email: EmailStr
     code: str
+
+class FCMTokenUpdate(BaseModel):
+    fcm_token: str
 
 @router.post("/signup")
 async def signup(user_data:User, background_tasks: BackgroundTasks):
@@ -127,7 +130,12 @@ async def login(user_data:UserLogin):
     if not existing_login.get("is_verified"):
         raise HTTPException(status_code=403, detail="Please verify your email first.")
         
-    hash_check = bcrypt.checkpw(user_data.password.encode("utf-8"),existing_login["password"].encode("utf-8"))
+    stored_password = existing_login.get("password")
+    
+    if not stored_password:
+        raise HTTPException(status_code=401, detail="Invalid Email or Password (Legacy Account)")
+        
+    hash_check = bcrypt.checkpw(user_data.password.encode("utf-8"), stored_password.encode("utf-8"))
     if not hash_check:
         raise HTTPException(status_code=401,detail="Invalid Email or Password")
         
@@ -140,3 +148,37 @@ async def login(user_data:UserLogin):
     encoded_jwt = jwt.encode(token, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     
     return {"Message":"Login Successfull","login_email":user_data.email,"access_token":encoded_jwt}
+
+
+# ─────────────────────────────────────────────
+# Phase 2 — FCM Token Registration Endpoint
+# ─────────────────────────────────────────────
+@router.patch("/update_fcm_token")
+async def update_fcm_token(
+    payload: FCMTokenUpdate,
+    authorization: str = Header(..., description="Bearer <JWT>")
+):
+    # ── Extract & Validate JWT ──
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="Invalid Authorization header format.")
+
+    try:
+        decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = decoded.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token payload missing 'sub'.")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+
+    # ── Vault Update — store FCM token under android key ──
+    result = await db.users.update_one(
+        {"_id": user_id},
+        {"$set": {"fcm_tokens.android": payload.fcm_token}}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found in database.")
+
+    logger.info(f"FCM token saved for user {user_id}")
+    return {"message": "FCM token registered successfully."}

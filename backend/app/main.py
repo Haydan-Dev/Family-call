@@ -13,11 +13,13 @@ from app.routes.callroutes import router as call_router
 from app.websockets.websocket_routes import router as websocket_router
 from app.routes.upload_routes import router as upload_router
 from app.core.middlewares import core
+from app.core.firebase_config import initialize_firebase
 
 # Lifespan - Server start aur stop hone ka Engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_to_mongo()  # Start hote hi DB se pipe jod dega
+    initialize_firebase()
     yield
     await close_mongo_connection() # Band hote hi pipe kaat dega
 

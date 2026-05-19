@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1068849674795",
+    "project_id": "family-call-41924",
+    "storage_bucket": "family-call-41924.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1068849674795:android:68709dcebf9595a27a086e",
+        "android_client_info": {
+          "package_name": "com.haydan.familycall"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsMW3_zhq-06723EAlBohUUo0gEap5Vq8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -4,6 +4,7 @@ __pycache__/
 .env
 *.py[cod]
 *$py.class
+firebase-credentials.json
 
 # --- JavaScript / React Frontend ---
 node_modules/
