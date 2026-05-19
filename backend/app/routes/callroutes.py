@@ -9,6 +9,11 @@ from app.services.call_services import (
     call_history_db,
     delete_call_db
 )
+import asyncio
+from firebase_admin import messaging
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/calls",
@@ -28,6 +33,7 @@ async def call_initialize(call_data: callrequest, user_id: str = Depends(get_cur
             raise HTTPException(status_code=404, detail="Room not found")
             
         participant_ids = room.get("participant_ids", [])
+        # receiver_id is the participant who is NOT the current user
         receiver_id = next((str(pid) for pid in participant_ids if str(pid) != str(user_id)), None)
         
         if not receiver_id:
@@ -39,11 +45,39 @@ async def call_initialize(call_data: callrequest, user_id: str = Depends(get_cur
         }
         
         call_id = await call_initialize_db(db, user_id, db_call_data)
+        
         if call_id:
+            # ── PHASE 4: VOIP DATA PAYLOAD FIREBASE TRIGGER ──
+            receiver = await db.users.find_one({"_id": receiver_id})
+            if receiver:
+                # Use standard dictionary gets to avoid KeyError
+                fcm_token = (receiver.get("fcm_tokens") or {}).get("android")
+                if fcm_token:
+                    def send_voip_push():
+                        try:
+                            # 🎯 NOTICE: We use ONLY 'data' (No 'notification' tag) to wake up the app silently for custom UI
+                            message = messaging.Message(
+                                data={
+                                    "event": "incoming_call",
+                                    "call_id": str(call_id),
+                                    "call_type": call_data.call_type,
+                                    "caller_id": str(user_id)
+                                },
+                                token=fcm_token
+                            )
+                            messaging.send(message)
+                        except Exception as e:
+                            logger.error(f"FCM Call Error: {str(e)}")
+                    
+                    # Fire and forget in the background!
+                    asyncio.create_task(asyncio.to_thread(send_voip_push))
+            # ─────────────────────────────────────────────────
+            
             return {"status": 200, "Message": "Call is started and Noted in DB Successfully", "call_id": call_id} 
         else:
             raise HTTPException(status_code=500, detail="Database insertion failed.")
     except Exception as e:
+        logger.error(f"Error in call_initialize: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/status_update/{call_id}")
