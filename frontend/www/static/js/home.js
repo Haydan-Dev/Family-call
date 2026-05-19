@@ -694,10 +694,110 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('❌ [PushNotifications] Registration error:', JSON.stringify(error));
     });
 
-    // 📩 Foreground push received while app is actively open
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('📩 [PushNotifications] Foreground payload:', JSON.stringify(notification));
+    // ═══════════════════════════════════════════════════════════
+    // 📩 FOREGROUND: Push received while app is actively open
+    // ═══════════════════════════════════════════════════════════
+    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+      console.log('📩 [Foreground] Payload received:', JSON.stringify(notification));
+
+      const data = notification.data || {};
+
+      // ── CALL: Show local notification with call UI in foreground ──
+      if (data.event === 'incoming_call') {
+        console.log('🚨 INCOMING CALL (Foreground)! Waking up UI...', data);
+
+        const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+        if (LocalNotifications) {
+          try {
+            const callerName = data.caller_name || 'Family';
+            const callType = (data.call_type || 'video').charAt(0).toUpperCase() + (data.call_type || 'video').slice(1);
+
+            await LocalNotifications.schedule({
+              notifications: [{
+                title: `${callerName} calling...`,
+                body: `Incoming ${callType.toLowerCase()} call. Tap to answer!`,
+                id: Math.floor(Math.random() * 1000000),
+                schedule: { at: new Date(Date.now() + 100) },
+                sound: null,
+                extra: data,
+                actionTypeId: '',
+              }]
+            });
+            console.log('✅ Local Notification (Call UI) Triggered!');
+          } catch (err) {
+            console.error('❌ Failed to trigger Local Notification:', err);
+          }
+        }
+      }
+
+      // ── MESSAGE: Foreground messages are already visible in chat, no local notification needed ──
+      // (WhatsApp also doesn't show notification when you're inside the app)
     });
+
+    // ═══════════════════════════════════════════════════════════
+    // 👆 BACKGROUND/KILLED: User taps the OS notification
+    //    (This is the CRITICAL listener for bg/killed states)
+    //    Android OS auto-shows the notification from the 
+    //    'notification' payload in FCM. When user taps it,
+    //    THIS listener fires with the 'data' payload.
+    // ═══════════════════════════════════════════════════════════
+    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      console.log('🚨 [Background Tap] Notification tapped:', JSON.stringify(action));
+
+      const data = action.notification.data || {};
+
+      // ── CALL TAP: Route to incoming call screen ──
+      if (data.event === 'incoming_call') {
+        const callType = data.call_type || 'video';
+        const roomId = data.room_id || '';
+        const callId = data.call_id || '';
+        const callerName = encodeURIComponent(data.caller_name || 'Family');
+
+        if (callType === 'audio') {
+          window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+        } else {
+          window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+        }
+        return;
+      }
+
+      // ── MESSAGE TAP: Route to chat screen (WhatsApp style) ──
+      if (data.event === 'new_message') {
+        const roomId = data.room_id || data.conversation_id || '';
+        const senderName = data.sender_name || '';
+
+        if (roomId) {
+          window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(senderName)}`;
+        } else {
+          // Fallback: just open the app (home screen)
+          window.location.href = 'home.html';
+        }
+        return;
+      }
+    });
+
+    // 👆 FOREGROUND TAP: User taps a local notification (call) while app is open
+    const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+    if (LocalNotifications) {
+      LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+        console.log('🚨 [Local Notification Tap]', action);
+
+        const payload = action.notification.extra;
+
+        if (payload && payload.event === 'incoming_call') {
+          const callType = payload.call_type || 'video';
+          const roomId = payload.room_id || '';
+          const callId = payload.call_id || '';
+          const callerName = encodeURIComponent(payload.caller_name || 'Family');
+
+          if (callType === 'audio') {
+            window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+          } else {
+            window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+          }
+        }
+      });
+    }
   }
 
   // Auto-trigger alongside fetchChats() and connectGlobalWebSocket()

@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@capacitor/local-notifications": "^8.2.0",
     "@capacitor/push-notifications": "^8.1.1"
   }
 }

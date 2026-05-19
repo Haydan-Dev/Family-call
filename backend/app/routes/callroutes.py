@@ -49,27 +49,49 @@ async def call_initialize(call_data: callrequest, user_id: str = Depends(get_cur
         if call_id:
             # ── PHASE 4: VOIP DATA PAYLOAD FIREBASE TRIGGER ──
             receiver = await db.users.find_one({"_id": receiver_id})
+            caller = await db.users.find_one({"_id": user_id})
+            caller_name = (caller.get("full_name") if caller else None) or "Family"
+            
             if receiver:
-                # Use standard dictionary gets to avoid KeyError
                 fcm_token = (receiver.get("fcm_tokens") or {}).get("android")
                 if fcm_token:
+                    call_type_label = (call_data.call_type or "video").capitalize()
+                    
                     def send_voip_push():
                         try:
-                            # 🎯 NOTICE: We use ONLY 'data' (No 'notification' tag) to wake up the app silently for custom UI
                             message = messaging.Message(
+                                # notification = OS shows this even when app is killed/bg
+                                notification=messaging.Notification(
+                                    title=f"{caller_name} calling...",
+                                    body=f"Incoming {call_type_label} call. Tap to answer."
+                                ),
+                                # data = JS receives this for smart redirection on tap
                                 data={
                                     "event": "incoming_call",
                                     "call_id": str(call_id),
                                     "call_type": call_data.call_type,
-                                    "caller_id": str(user_id)
+                                    "caller_id": str(user_id),
+                                    "caller_name": caller_name,
+                                    "room_id": str(call_data.room_id)
                                 },
+                                # HIGH PRIORITY + lock-screen visibility
+                                android=messaging.AndroidConfig(
+                                    priority="high",
+                                    notification=messaging.AndroidNotification(
+                                        channel_id="incoming_calls",
+                                        priority="max",
+                                        visibility="public",
+                                        sound="default"
+                                    )
+                                ),
                                 token=fcm_token
                             )
                             messaging.send(message)
+                            logger.info(f"📞 VoIP push sent to {receiver_id}")
                         except Exception as e:
-                            logger.error(f"FCM Call Error: {str(e)}")
+                            logger.error(f"FCM VoIP Error [{receiver_id}]: {str(e)}")
                     
-                    # Fire and forget in the background!
+                    # Fire and forget — non-blocking
                     asyncio.create_task(asyncio.to_thread(send_voip_push))
             # ─────────────────────────────────────────────────
             

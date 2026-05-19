@@ -44,19 +44,38 @@ async def send_messages(conversation_id: str, message_data: First_Message, user_
                 
                 if receiver_id:
                     receiver = await db.users.find_one({"_id": receiver_id})
+                    sender = await db.users.find_one({"_id": user_id})
+                    sender_name = (sender.get("full_name") if sender else None) or "Someone"
+                    
                     if receiver:
                         fcm_token = (receiver.get("fcm_tokens") or {}).get("android")
                         if fcm_token:
+                            # Truncate long messages for notification preview
+                            preview = (message_data.content[:80] + "...") if len(message_data.content) > 80 else message_data.content
+                            
                             def send_msg_push():
                                 try:
                                     message = messaging.Message(
+                                        # notification = OS shows this in bg/killed (WhatsApp style)
                                         notification=messaging.Notification(
-                                            title="New Message",
-                                            body=message_data.content
+                                            title=sender_name,
+                                            body=preview
+                                        ),
+                                        # data = available to JS when user taps notification
+                                        data={
+                                            "event": "new_message",
+                                            "conversation_id": str(conversation_id),
+                                            "sender_name": sender_name,
+                                            "room_id": str(room["_id"])
+                                        },
+                                        # HIGH PRIORITY = wakes device from Doze mode
+                                        android=messaging.AndroidConfig(
+                                            priority="high"
                                         ),
                                         token=fcm_token
                                     )
                                     messaging.send(message)
+                                    logger.info(f"📩 Message push sent to {receiver_id}")
                                 except Exception as e:
                                     logger.error(f"FCM Message Error: {str(e)}")
                             
