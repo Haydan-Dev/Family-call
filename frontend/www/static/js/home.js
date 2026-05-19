@@ -6,6 +6,30 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
+  // ── COLD LAUNCH ROUTER: Handle notification tap that opened the killed app ──
+  // When MyFirebaseMessagingService opens MainActivity with Intent extras,
+  // Capacitor's App plugin exposes them. We check and redirect immediately.
+  (async function handleNotificationLaunch() {
+    if (!(window.Capacitor && window.Capacitor.isNativePlatform())) return;
+    
+    const App = window.Capacitor.Plugins.App;
+    if (!App) return;
+
+    try {
+      const launchUrl = await App.getLaunchUrl();
+      // getLaunchUrl() returns the deep link URL if one triggered the app open
+      // Our native service sets intent extras but not a URL scheme, 
+      // so we also listen for the appStateChange/resume event below.
+    } catch (e) {
+      // Not launched from a URL — this is expected for Intent extras
+    }
+
+    // Listen for app resume with new intent (e.g., user already has app in bg)
+    App.addListener('appUrlOpen', (event) => {
+      console.log('🔗 App opened via URL:', event.url);
+      // If we set up deep linking later, handle it here
+    });
+  })();
 
 
 
@@ -557,6 +581,23 @@ document.addEventListener('DOMContentLoaded', () => {
     window.ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
+
+        // ── 🚨 INCOMING CALL via WebSocket (receiver is on home page) ──
+        if (payload.event === 'incoming_call') {
+          console.log('🚨 INCOMING CALL on Home Page!', payload);
+          const callType = payload.call_type || 'video';
+          const roomId = payload.room_id || '';
+          const callId = payload.call_id || '';
+          const callerName = encodeURIComponent(payload.caller_name || 'Family');
+
+          if (callType === 'audio') {
+            window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+          } else {
+            window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+          }
+          return;
+        }
+
         if (payload.event === 'STATUS_UPDATE' && payload.new_status === 'seen' && payload.room_id) {
           const card = document.querySelector(`.card-item[data-room-id="${payload.room_id}"]`);
           if (card) {

@@ -59,13 +59,10 @@ async def call_initialize(call_data: callrequest, user_id: str = Depends(get_cur
                     
                     def send_voip_push():
                         try:
+                            # 🎯 DATA-ONLY payload — ensures onMessageReceived fires
+                            # in ALL states (foreground, background, KILLED).
+                            # MyFirebaseMessagingService.java builds the notification natively.
                             message = messaging.Message(
-                                # notification = OS shows this even when app is killed/bg
-                                notification=messaging.Notification(
-                                    title=f"{caller_name} calling...",
-                                    body=f"Incoming {call_type_label} call. Tap to answer."
-                                ),
-                                # data = JS receives this for smart redirection on tap
                                 data={
                                     "event": "incoming_call",
                                     "call_id": str(call_id),
@@ -74,15 +71,8 @@ async def call_initialize(call_data: callrequest, user_id: str = Depends(get_cur
                                     "caller_name": caller_name,
                                     "room_id": str(call_data.room_id)
                                 },
-                                # HIGH PRIORITY + lock-screen visibility
                                 android=messaging.AndroidConfig(
-                                    priority="high",
-                                    notification=messaging.AndroidNotification(
-                                        channel_id="incoming_calls",
-                                        priority="max",
-                                        visibility="public",
-                                        sound="default"
-                                    )
+                                    priority="high"
                                 ),
                                 token=fcm_token
                             )

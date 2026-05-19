@@ -55,20 +55,17 @@ async def send_messages(conversation_id: str, message_data: First_Message, user_
                             
                             def send_msg_push():
                                 try:
+                                    # 🎯 DATA-ONLY payload — ensures onMessageReceived fires
+                                    # in ALL states (foreground, background, KILLED).
+                                    # MyFirebaseMessagingService.java builds the notification natively.
                                     message = messaging.Message(
-                                        # notification = OS shows this in bg/killed (WhatsApp style)
-                                        notification=messaging.Notification(
-                                            title=sender_name,
-                                            body=preview
-                                        ),
-                                        # data = available to JS when user taps notification
                                         data={
                                             "event": "new_message",
                                             "conversation_id": str(conversation_id),
                                             "sender_name": sender_name,
+                                            "message_body": preview,
                                             "room_id": str(room["_id"])
                                         },
-                                        # HIGH PRIORITY = wakes device from Doze mode
                                         android=messaging.AndroidConfig(
                                             priority="high"
                                         ),
