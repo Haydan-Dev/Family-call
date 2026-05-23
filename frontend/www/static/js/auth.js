@@ -64,7 +64,7 @@ if (loginForm) {
         const data = await response.json();
         const token = data.access_token;
         if (token) {
-          localStorage.setItem('token', token);
+          await window.NativeStorage.setItem('token', token);
           console.log("TOKEN ACQUIRED");
           window.location.href = 'home.html';
         } else {

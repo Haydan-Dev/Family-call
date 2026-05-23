@@ -1,5 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const token = localStorage.getItem('token');
+document.addEventListener('DOMContentLoaded', async () => {
+  const token = await window.NativeStorage.getItem('token');
   if (!token) { window.location.href = 'login.html'; return; }
 
   const loadingState = document.getElementById('loadingState');

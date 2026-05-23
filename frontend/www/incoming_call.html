@@ -3,78 +3,460 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Hamnasheen - Incoming Call</title>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>Hamnasheen - Incoming Video Call</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
-  <link rel="stylesheet" href="static/css/style.css">
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #08080a;
+  font-family: 'DM Sans', sans-serif;
+  color: #ffffff;
+}
+
+.hn-root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: radial-gradient(circle at top, #1c1c16 0%, #08080a 70%);
+}
+
+/* Background pulsating rings */
+.bg-glow-container {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glow-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 199, 0, 0.04);
+  background: radial-gradient(circle, rgba(255, 199, 0, 0.02) 0%, transparent 70%);
+  animation: pulseGlow 4s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0% { transform: scale(0.85); opacity: 0.3; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+  100% { transform: scale(0.85); opacity: 0.3; }
+}
+
+/* Status Bar Mock */
+.status-bar {
+  height: 44px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 24px 8px;
+  position: relative;
+  z-index: 10;
+}
+
+.status-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.status-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-gold {
+  color: #FFC700;
+}
+
+/* Main Container */
+.call-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 40px 30px 60px;
+  position: relative;
+  z-index: 5;
+}
+
+/* Call Header */
+.call-header {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.brand-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #FFC700;
+  text-shadow: 0 2px 10px rgba(255, 199, 0, 0.25);
+  margin-bottom: 6px;
+}
+
+.call-type-subtitle {
+  font-size: 13px;
+  font-weight: 400;
+  color: #888888;
+  letter-spacing: 0.05em;
+}
+
+/* Central Pulsating Avatar */
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 40px 0;
+}
+
+.avatar-outer-ring {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 199, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  animation: avatarPulse 2.5s infinite ease-in-out;
+}
+
+.avatar-outer-ring::before {
+  content: '';
+  position: absolute;
+  inset: -15px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 199, 0, 0.06);
+  animation: avatarPulseOuter 2.5s infinite ease-in-out;
+}
+
+@keyframes avatarPulse {
+  0% { transform: scale(0.96); box-shadow: 0 0 0 0 rgba(255, 199, 0, 0.1); }
+  50% { transform: scale(1.04); box-shadow: 0 0 30px 10px rgba(255, 199, 0, 0.08); }
+  100% { transform: scale(0.96); box-shadow: 0 0 0 0 rgba(255, 199, 0, 0.1); }
+}
+
+@keyframes avatarPulseOuter {
+  0% { transform: scale(0.93); opacity: 0.3; }
+  50% { transform: scale(1.07); opacity: 1; }
+  100% { transform: scale(0.93); opacity: 0.3; }
+}
+
+.avatar-inner {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  background: #16161a;
+  border: 2px solid #FFC700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Playfair Display', serif;
+  font-size: 46px;
+  font-weight: 700;
+  color: #FFC700;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.caller-name-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 36px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 24px;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+/* Call Actions Grid */
+.actions-container {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.action-btn-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  width: 80px;
+}
+
+.action-btn-circle {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
+}
+
+.action-btn-wrapper:active .action-btn-circle {
+  transform: scale(0.88);
+}
+
+.decline-theme {
+  background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+  box-shadow: 0 8px 24px rgba(211, 47, 47, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.accept-theme {
+  background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+  box-shadow: 0 8px 24px rgba(46, 125, 50, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.action-icon {
+  font-size: 28px;
+  color: #ffffff;
+}
+
+.action-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #888888;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Pill options */
+.pill-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.pill-opt {
+  background: rgba(255, 199, 0, 0.05);
+  border: 1px solid rgba(255, 199, 0, 0.15);
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #FFC700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: background 0.15s, transform 0.15s;
+  cursor: pointer;
+}
+
+.pill-opt:active {
+  background: rgba(255, 199, 0, 0.15);
+  transform: scale(0.95);
+}
+
+@keyframes bounceIcon {
+  from { transform: translateY(0); }
+  to { transform: translateY(-4px); }
+}
+
+  </style>
 </head>
 <body>
   <div class="hn-root">
-    <div class="phone">
-      <!-- Call Screen Container -->
-      <div class="call-screen active" style="flex:1; display:flex; flex-direction:column; position:relative; overflow:hidden;">
-        
-        <!-- Background decorative rings -->
-        <div class="call-bg-ring" style="width:500px; height:500px; top:-100px; left:-90px"></div>
-        <div class="call-bg-ring" style="width:380px; height:380px; top:-40px; left:-30px"></div>
+    <!-- Background pulsating rings -->
+    <div class="bg-glow-container">
+      <div class="glow-ring" style="width: 500px; height: 500px; animation-delay: 0s;"></div>
+      <div class="glow-ring" style="width: 360px; height: 360px; animation-delay: 1.5s;"></div>
+    </div>
 
-        <!-- Call Content -->
-        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:2; padding-top:40px">
-          <p style="font-size:11px; color:#555; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:8px">Hamnasheen • Incoming Call</p>
-          
-          <div class="call-avatar-ring" style="width:120px; height:120px">
-            <div class="call-avatar-inner" style="width:104px; height:104px; font-size:40px">P</div>
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span class="status-time">--:--</span>
+      <div class="status-icons">
+        <i class="ti ti-wifi status-gold" style="font-size:14px"></i>
+        <i class="ti ti-battery-4 status-gold" style="font-size:14px"></i>
+      </div>
+    </div>
+
+    <!-- Call Area -->
+    <div class="call-container">
+      <div class="call-header">
+        <p class="brand-label">Hamnasheen</p>
+        <p class="call-type-subtitle">INCOMING VIDEO CALL...</p>
+      </div>
+
+      <!-- Avatar & Name -->
+      <div class="avatar-section">
+        <div class="avatar-outer-ring">
+          <div class="avatar-inner" id="callerAvatar">?</div>
+        </div>
+        <h2 class="caller-name-title" id="callerName">Loading Caller...</h2>
+      </div>
+
+      <!-- Actions Grid -->
+      <div class="actions-container">
+        <!-- Decline -->
+        <div class="action-btn-wrapper" id="declineBtn">
+          <div class="action-btn-circle decline-theme">
+            <i class="ti ti-phone-off action-icon"></i>
           </div>
-          
-          <p style="font-family:'Playfair Display',serif; font-size:28px; font-weight:700; color:#fff; margin-top:12px">Papa</p>
-          <p style="font-size:12px; color:#555">Voice Call</p>
+          <span class="action-label">Decline</span>
+        </div>
 
-          <!-- Actions Row -->
-          <div style="width:100%; display:flex; justify-content:space-around; align-items:center; padding:24px 40px 0">
-            <!-- Decline -->
-            <div id="declineCallBtn" style="display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer;">
-              <div style="width:60px; height:60px; border-radius:50%; background:#c0392b; display:flex; align-items:center; justify-content:center">
-                <i class="ti ti-phone-off" style="font-size:24px; color:#fff"></i>
-              </div>
-              <span style="font-size:11px; color:#555">Decline</span>
-            </div>
-            
-            <!-- Mid buttons -->
-            <div style="display:flex; flex-direction:column; align-items:center; gap:6px">
-              <div style="background:rgba(255,199,0,0.08); border:1px solid rgba(255,199,0,0.2); border-radius:20px; padding:6px 16px; margin-bottom:4px">
-                <span style="font-size:10px; color:#FFC700; letter-spacing:0.08em">REMIND ME</span>
-              </div>
-              <div style="background:rgba(255,199,0,0.08); border:1px solid rgba(255,199,0,0.2); border-radius:20px; padding:6px 16px">
-                <span style="font-size:10px; color:#FFC700; letter-spacing:0.08em">MESSAGE</span>
-              </div>
-            </div>
-            
-            <!-- Accept -->
-            <div id="acceptCallBtn" style="display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer;">
-              <div style="width:60px; height:60px; border-radius:50%; background:#25D366; display:flex; align-items:center; justify-content:center">
-                <i class="ti ti-phone" style="font-size:24px; color:#fff"></i>
-              </div>
-              <span style="font-size:11px; color:#555">Accept</span>
-            </div>
+        <!-- Middle Pills -->
+        <div class="pill-options">
+          <div class="pill-opt">Remind Me</div>
+          <div class="pill-opt">Message</div>
+        </div>
+
+        <!-- Accept -->
+        <div class="action-btn-wrapper" id="acceptBtn">
+          <div class="action-btn-circle accept-theme">
+            <i class="ti ti-video action-icon" style="animation: bounceIcon 0.8s infinite alternate;"></i>
           </div>
-
+          <span class="action-label">Accept</span>
         </div>
       </div>
     </div>
   </div>
 
+  <script src="static/js/auth_guard.js"></script>
+  <script src="static/js/config.js"></script>
   <script>
-    document.getElementById('declineCallBtn').onclick = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const roomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || '';
-      window.location.href = `chat.html?room_id=${roomId}`;
-    };
+    const params = new URLSearchParams(window.location.search);
+    const roomId = params.get('room_id');
+    const callerName = params.get('caller_name') || 'Family Member';
+    const callId = params.get('call_id');
+    
+    // Set dynamic text and avatar initials
+    const decodedName = decodeURIComponent(callerName);
+    document.getElementById('callerName').textContent = decodedName;
+    document.getElementById('callerAvatar').textContent = decodedName.charAt(0).toUpperCase();
 
-    document.getElementById('acceptCallBtn').onclick = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const roomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || '';
-      window.location.href = `active_call.html?room_id=${roomId}`;
-    };
+    // Setup Status Bar Clock
+    function updateClock() {
+      const now = new Date();
+      document.querySelector('.status-time').textContent = 
+        now.getHours().toString().padStart(2, '0') + ':' + 
+        now.getMinutes().toString().padStart(2, '0');
+    }
+    setInterval(updateClock, 10000);
+    updateClock();
+
+    (async function init() {
+      const token = await window.NativeStorage.getItem('token');
+      let myUserId = 'unknown';
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          myUserId = payload.sub || payload.id || payload.user_id || myUserId;
+        } catch (e) {}
+      }
+
+      // VoIP Ringtone audio playback loop
+      const incomingAudio = new Audio('./sounds/ringtone.mp3');
+      incomingAudio.loop = true;
+      try { 
+        incomingAudio.play().catch(err => {
+          console.warn("Autoplay audio blocked initially. User interaction will trigger sound.", err);
+        }); 
+      } catch(e) { console.log(e); }
+
+      // Unblock and play ringtone on first screen click in case of autoplay policy restriction
+      document.body.addEventListener('click', () => {
+        if (incomingAudio.paused) {
+          incomingAudio.play().catch(e => console.log("Sound play error on user interaction:", e));
+        }
+      }, { once: true });
+
+      function stopRinging() {
+        incomingAudio.pause();
+        incomingAudio.currentTime = 0;
+      }
+
+      // Establish signaling connection
+      const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
+      console.log("Connecting to video signaling WS:", wsUrl);
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("WebSocket connected. Listening for call cancellation...");
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log("Signaling message received:", data);
+        if (data.event === 'call_cancelled') {
+          console.log("Call was cancelled by the remote caller.");
+          stopRinging();
+          window.location.href = `chat.html?room_id=${roomId}`;
+        }
+      };
+
+      // Accept calling action
+      document.getElementById('acceptBtn').onclick = async () => {
+        stopRinging();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ event: 'call_accepted', room_id: roomId }));
+        }
+        if (callId) {
+          try {
+            await fetch(`${BASE_URL}/calls/status_update/${callId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ call_status: 'ongoing' })
+            });
+          } catch(e) { console.error("Failed to PATCH call status to ongoing:", e); }
+        }
+        setTimeout(() => {
+           const callIdParam = callId ? `&call_id=${callId}` : '';
+           window.location.href = `active_call.html?room_id=${roomId}&mode=receiver&call_type=video&name=${encodeURIComponent(callerName)}${callIdParam}`;
+        }, 100);
+      };
+
+      // Decline calling action
+      document.getElementById('declineBtn').onclick = async () => {
+        stopRinging();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ event: 'call_declined', room_id: roomId }));
+        }
+        if (callId) {
+          try {
+            await fetch(`${BASE_URL}/calls/status_update/${callId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ call_status: 'rejected' })
+            });
+          } catch(e) { console.error("Failed to PATCH call status to rejected:", e); }
+        }
+        setTimeout(() => {
+           window.location.href = `chat.html?room_id=${roomId}`;
+        }, 100);
+      };
+    })();
   </script>
 </body>
 </html>

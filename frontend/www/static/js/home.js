@@ -1,9 +1,80 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // --- 1. Core Setup & Auth Check ---
-  const token = localStorage.getItem('token');
+  const token = await window.NativeStorage.getItem('token');
   if (!token) {
     window.location.href = 'login.html';
     return;
+  }
+
+  // --- 1.5 Overlay Permission & Custom ROM Auto-Start Check ---
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    const AppPermissions = window.Capacitor.Plugins.AppPermissions;
+    if (AppPermissions) {
+      const checkAndSetupPermissions = async () => {
+        try {
+          const isDismissed = await window.NativeStorage.getItem('overlay_dismissed');
+          if (isDismissed === 'true') return;
+
+          const checkResult = await AppPermissions.checkOverlayPermission();
+          const overlayModal = document.getElementById('overlayPermissionModal');
+          const btnAllow = document.getElementById('btnAllowOverlay');
+          const btnDeny = document.getElementById('btnDenyOverlay');
+          const promptTitle = document.getElementById('overlayPromptTitle');
+          const promptDesc = document.getElementById('overlayPromptDesc');
+          
+          if (!checkResult.granted) {
+            const mfgResult = await AppPermissions.getDeviceManufacturer();
+            const mfg = (mfgResult.manufacturer || '').toLowerCase();
+            const isXiaomi = mfg.includes('xiaomi') || mfg.includes('redmi') || mfg.includes('poco');
+
+            if (isXiaomi && promptTitle && promptDesc) {
+              promptTitle.textContent = "Allow Family Call to display pop-ups in background?";
+              promptDesc.innerHTML = "Redmi devices require 3 permissions to receive calls when closed:<br><b>1. Display over other apps<br>2. Display pop-up windows while running in the background<br>3. Show on Lock screen</b><br><br>Please allow all 3 on the next screen.";
+            }
+
+            if (overlayModal) {
+              overlayModal.classList.add('active');
+              
+              if (btnAllow) {
+                btnAllow.onclick = async () => {
+                  await AppPermissions.requestOverlayPermission();
+                  // We do not remove 'active' here so the modal is hidden when they return
+                  // The appStateChange listener will handle re-checking and hiding
+                };
+              }
+              
+              if (btnDeny) {
+                btnDeny.onclick = async () => {
+                  overlayModal.classList.remove('active');
+                  await window.NativeStorage.setItem('overlay_dismissed', 'true');
+                };
+              }
+            }
+          } else {
+            if (overlayModal) {
+              overlayModal.classList.remove('active');
+            }
+            await AppPermissions.checkAndRequestAutoStart();
+          }
+        } catch (err) {
+          console.error("Failed to check background permissions:", err);
+        }
+      };
+
+      // Run initial check
+      await checkAndSetupPermissions();
+
+      // Hook up an appStateChange listener to auto-refresh permission status when coming back from settings
+      const App = window.Capacitor.Plugins.App;
+      if (App) {
+        App.addListener('appStateChange', async (state) => {
+          if (state.isActive) {
+            console.log('🔄 App resumed! Re-checking calling setup permissions...');
+            await checkAndSetupPermissions();
+          }
+        });
+      }
+    }
   }
 
   // ── COLD LAUNCH ROUTER: Handle notification tap that opened the killed app ──
@@ -555,8 +626,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Logout
-  logoutBtn.addEventListener('click', () => {
-    localStorage.removeItem('token');
+  logoutBtn.addEventListener('click', async () => {
+    await window.NativeStorage.removeItem('token');
     window.location.href = 'login.html';
   });
 
@@ -568,8 +639,8 @@ document.addEventListener('DOMContentLoaded', () => {
     .catch(err => console.error('Error marking messages as delivered:', err));
 
   // Global listener for socket events to update unread badge without refresh
-  function connectGlobalWebSocket() {
-    const token = localStorage.getItem('token');
+  async function connectGlobalWebSocket() {
+    const token = await window.NativeStorage.getItem('token');
     if (!token) return;
 
     window.ws = new WebSocket(`${WS_URL}/ws/global?token=${token}`);
@@ -670,6 +741,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── PHASE 1: PUSH NOTIFICATIONS — FCM TOKEN EXTRACTION ───────────────────
   // Strict native-only execution. Will silently no-op on web browsers.
+  
+  // Define global handleAndroidIntent so native code can evaluate it
+  window.handleAndroidIntent = function(data) {
+    console.log('🚨 [handleAndroidIntent] Received custom native intent:', JSON.stringify(data));
+    if (!data || !data.event) return;
+
+    if (data.event === 'incoming_call') {
+      const callType = data.call_type || 'video';
+      const roomId = data.room_id || '';
+      const callId = data.call_id || '';
+      const callerName = encodeURIComponent(data.caller_name || 'Family');
+
+      console.log(`🚨 Routing to incoming call screen: type=${callType}, room=${roomId}`);
+      if (callType === 'audio') {
+        window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+      } else {
+        window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+      }
+    } else if (data.event === 'new_message') {
+      const roomId = data.room_id || '';
+      const senderName = encodeURIComponent(data.sender_name || 'Family Member');
+      console.log(`📩 Routing to chat room: room=${roomId}`);
+      if (roomId) {
+        window.location.href = `chat.html?room_id=${roomId}&name=${senderName}`;
+      }
+    }
+  };
+
+  async function checkPendingIntents() {
+    if (!(window.Capacitor && window.Capacitor.isNativePlatform())) return;
+    
+    const IntentReceiver = window.Capacitor.Plugins.IntentReceiver;
+    if (!IntentReceiver) {
+      console.warn('[IntentReceiver] Plugin not found.');
+      return;
+    }
+
+    try {
+      console.log('[IntentReceiver] Checking for pending cold launch intent...');
+      const result = await IntentReceiver.getIntentExtras();
+      console.log('[IntentReceiver] Pending intent result:', JSON.stringify(result));
+      if (result && result.has_extras && result.extras) {
+        console.log('[IntentReceiver] Routing pending cold launch intent...');
+        window.handleAndroidIntent(result.extras);
+      }
+    } catch (err) {
+      console.error('[IntentReceiver] Error checking pending intents:', err);
+    }
+  }
+
   async function initPushNotifications() {
     // --- Guard: Only run inside Capacitor native shell ---
     if (!(window.Capacitor && window.Capacitor.isNativePlatform())) {
@@ -683,30 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    try {
-      // Step 1: Request system-level notification permission from Android OS
-      const permResult = await PushNotifications.requestPermissions();
-      console.log('[PushNotifications] Permission state:', permResult.receive);
-
-      if (permResult.receive === 'granted') {
-        // Step 2: Trigger FCM registration — this kicks off the native token fetch
-        await PushNotifications.register();
-        console.log('[PushNotifications] register() called — awaiting token...');
-      } else {
-        // Permission denied — fire the custom glassmorphic toast with Settings redirect
-        PermissionGuard.showToast(
-          'Notification permission denied! Tap Settings to enable.',
-          'error',
-          true
-        );
-        return;
-      }
-    } catch (err) {
-      console.error('[PushNotifications] Permission/Register lifecycle error:', err);
-      return;
-    }
-
-    // --- Core Event Listeners ---
+    // --- Core Event Listeners registered BEFORE register() to avoid race conditions ---
 
     // 🎯 Token successfully generated by Firebase
     PushNotifications.addListener('registration', async (token) => {
@@ -735,86 +833,22 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('❌ [PushNotifications] Registration error:', JSON.stringify(error));
     });
 
-    // ═══════════════════════════════════════════════════════════
     // 📩 FOREGROUND: Push received while app is actively open
-    // ═══════════════════════════════════════════════════════════
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 [Foreground] Payload received:', JSON.stringify(notification));
-
       const data = notification.data || {};
 
-      // ── CALL: Show local notification with call UI in foreground ──
       if (data.event === 'incoming_call') {
         console.log('🚨 INCOMING CALL (Foreground)! Waking up UI...', data);
-
-        const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
-        if (LocalNotifications) {
-          try {
-            const callerName = data.caller_name || 'Family';
-            const callType = (data.call_type || 'video').charAt(0).toUpperCase() + (data.call_type || 'video').slice(1);
-
-            await LocalNotifications.schedule({
-              notifications: [{
-                title: `${callerName} calling...`,
-                body: `Incoming ${callType.toLowerCase()} call. Tap to answer!`,
-                id: Math.floor(Math.random() * 1000000),
-                schedule: { at: new Date(Date.now() + 100) },
-                sound: null,
-                extra: data,
-                actionTypeId: '',
-              }]
-            });
-            console.log('✅ Local Notification (Call UI) Triggered!');
-          } catch (err) {
-            console.error('❌ Failed to trigger Local Notification:', err);
-          }
-        }
+        window.handleAndroidIntent(data);
       }
-
-      // ── MESSAGE: Foreground messages are already visible in chat, no local notification needed ──
-      // (WhatsApp also doesn't show notification when you're inside the app)
     });
 
-    // ═══════════════════════════════════════════════════════════
     // 👆 BACKGROUND/KILLED: User taps the OS notification
-    //    (This is the CRITICAL listener for bg/killed states)
-    //    Android OS auto-shows the notification from the 
-    //    'notification' payload in FCM. When user taps it,
-    //    THIS listener fires with the 'data' payload.
-    // ═══════════════════════════════════════════════════════════
     PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
       console.log('🚨 [Background Tap] Notification tapped:', JSON.stringify(action));
-
       const data = action.notification.data || {};
-
-      // ── CALL TAP: Route to incoming call screen ──
-      if (data.event === 'incoming_call') {
-        const callType = data.call_type || 'video';
-        const roomId = data.room_id || '';
-        const callId = data.call_id || '';
-        const callerName = encodeURIComponent(data.caller_name || 'Family');
-
-        if (callType === 'audio') {
-          window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-        } else {
-          window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-        }
-        return;
-      }
-
-      // ── MESSAGE TAP: Route to chat screen (WhatsApp style) ──
-      if (data.event === 'new_message') {
-        const roomId = data.room_id || data.conversation_id || '';
-        const senderName = data.sender_name || '';
-
-        if (roomId) {
-          window.location.href = `chat.html?room_id=${roomId}&name=${encodeURIComponent(senderName)}`;
-        } else {
-          // Fallback: just open the app (home screen)
-          window.location.href = 'home.html';
-        }
-        return;
-      }
+      window.handleAndroidIntent(data);
     });
 
     // 👆 FOREGROUND TAP: User taps a local notification (call) while app is open
@@ -822,23 +856,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (LocalNotifications) {
       LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
         console.log('🚨 [Local Notification Tap]', action);
-
         const payload = action.notification.extra;
-
         if (payload && payload.event === 'incoming_call') {
-          const callType = payload.call_type || 'video';
-          const roomId = payload.room_id || '';
-          const callId = payload.call_id || '';
-          const callerName = encodeURIComponent(payload.caller_name || 'Family');
-
-          if (callType === 'audio') {
-            window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-          } else {
-            window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-          }
+          window.handleAndroidIntent(payload);
         }
       });
     }
+
+    try {
+      // Step 1: Request system-level notification permission from Android OS
+      const permResult = await PushNotifications.requestPermissions();
+      console.log('[PushNotifications] Permission state:', permResult.receive);
+
+      if (permResult.receive === 'granted') {
+        // Step 2: Trigger FCM registration — this kicks off the native token fetch
+        await PushNotifications.register();
+        console.log('[PushNotifications] register() called — awaiting token...');
+      } else {
+        // Permission denied — fire the custom glassmorphic toast with Settings redirect
+        PermissionGuard.showToast(
+          'Notification permission denied! Tap Settings to enable.',
+          'error',
+          true
+        );
+        return;
+      }
+    } catch (err) {
+      console.error('[PushNotifications] Permission/Register lifecycle error:', err);
+      return;
+    }
+
+    // After push initialization, check if we were cold-launched via notification click
+    await checkPendingIntents();
   }
 
   // Auto-trigger alongside fetchChats() and connectGlobalWebSocket()

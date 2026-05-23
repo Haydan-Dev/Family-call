@@ -7,7 +7,7 @@ from app.core.config import settings
 import json
 from bson import ObjectId
 from app.models.message import Message
-
+import datetime
 router = APIRouter(
     prefix="/ws",
     tags=["WebSockets"]
@@ -72,7 +72,46 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                 # ── STRICT SIGNALING GATEWAY ──
                 if msg_dict.get("event") in ("incoming_call", "call_accepted", "call_rejected", "call_cancelled", "call_declined", "call_ended"):
                     if recipient_id and recipient_id != user_id:
+                        is_online = recipient_id in manager.active_connections
                         await manager.send_personal_message(msg_dict, recipient_id)
+                        
+                        # If recipient is offline and event is call_cancelled, send FCM cancel push
+                        if not is_online and msg_dict.get("event") == "call_cancelled":
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            try:
+                                receiver = await db.users.find_one({"_id": recipient_id})
+                                if not receiver:
+                                    try:
+                                        receiver = await db.users.find_one({"_id": ObjectId(recipient_id)})
+                                    except: pass
+                                if receiver:
+                                    fcm_token = (receiver.get("fcm_tokens") or {}).get("android")
+                                    if fcm_token:
+                                        from firebase_admin import messaging
+                                        import asyncio
+                                        
+                                        def send_cancel_push():
+                                            try:
+                                                message = messaging.Message(
+                                                    data={
+                                                        "event": "call_cancelled",
+                                                        "room_id": str(room_id),
+                                                        "call_id": str(msg_dict.get("call_id", ""))
+                                                    },
+                                                    android=messaging.AndroidConfig(
+                                                        priority="high",
+                                                        ttl=datetime.timedelta(seconds=0)
+                                                    ),
+                                                    token=fcm_token
+                                                )
+                                                messaging.send(message)
+                                                logger.info(f"📞 VoIP cancel push sent to {recipient_id}")
+                                            except Exception as e:
+                                                logger.error(f"FCM Cancel Push Error: {str(e)}")
+                                        asyncio.create_task(asyncio.to_thread(send_cancel_push))
+                            except Exception as e:
+                                logger.error(f"WebSocket Call Cancel Push Error: {str(e)}")
                     continue
 
                 full_message = Message(
@@ -112,6 +151,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                 
                 # Notify recipient
                 if recipient_id and recipient_id != user_id:
+                    is_online = recipient_id in manager.active_connections
                     await manager.send_personal_message({
                         "event": "new_message", 
                         "message_id": message_id,
@@ -121,6 +161,51 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                         "sender_name": sender_name,
                         "message_type": full_message.message_type
                     }, recipient_id)
+                    
+                    # If recipient is offline, send FCM push notification!
+                    if not is_online:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        try:
+                            receiver = await db.users.find_one({"_id": recipient_id})
+                            if not receiver:
+                                try:
+                                    receiver = await db.users.find_one({"_id": ObjectId(recipient_id)})
+                                except: pass
+                            
+                            if receiver:
+                                fcm_token = (receiver.get("fcm_tokens") or {}).get("android")
+                                if fcm_token:
+                                    from firebase_admin import messaging
+                                    import asyncio
+                                    
+                                    # Truncate long messages for notification preview
+                                    preview = (full_message.content[:80] + "...") if len(full_message.content) > 80 else full_message.content
+                                    
+                                    def send_msg_push():
+                                        try:
+                                            message = messaging.Message(
+                                                data={
+                                                    "event": "new_message",
+                                                    "conversation_id": str(room_id),
+                                                    "sender_name": sender_name,
+                                                    "message_body": preview,
+                                                    "room_id": str(room_id)
+                                                },
+                                                android=messaging.AndroidConfig(
+                                                    priority="high",
+                                                    ttl=datetime.timedelta(seconds=45)
+                                                ),
+                                                token=fcm_token
+                                            )
+                                            messaging.send(message)
+                                            logger.info(f"📩 WebSocket offline message push sent to {recipient_id}")
+                                        except Exception as e:
+                                            logger.error(f"FCM WS Message Error: {str(e)}")
+                                            
+                                    asyncio.create_task(asyncio.to_thread(send_msg_push))
+                        except Exception as e:
+                            logger.error(f"WebSocket Push Notification Error: {str(e)}")
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
@@ -143,6 +228,45 @@ async def call_websocket_endpoint(websocket: WebSocket, room_id: str, client_id:
                         recipient_id = next((str(pid) for pid in participant_ids if str(pid) != str(client_id)), None)
                         if recipient_id:
                             await manager.send_personal_message(msg_dict, recipient_id)
+                            
+                            # 🚨 Dispatch background FCM push for termination events (cancellations/declines/ends)
+                            event_name = msg_dict.get("event")
+                            if event_name in ("call_cancelled", "call_declined", "call_ended", "call_rejected"):
+                                import logging
+                                logger = logging.getLogger(__name__)
+                                try:
+                                    receiver = await db.users.find_one({"_id": recipient_id})
+                                    if not receiver:
+                                        try:
+                                            receiver = await db.users.find_one({"_id": ObjectId(recipient_id)})
+                                        except: pass
+                                    if receiver:
+                                        fcm_token = (receiver.get("fcm_tokens") or {}).get("android")
+                                        if fcm_token:
+                                            from firebase_admin import messaging
+                                            import asyncio
+                                            
+                                            def send_cancel_push():
+                                                try:
+                                                    message = messaging.Message(
+                                                        data={
+                                                            "event": event_name,
+                                                            "room_id": str(room_id),
+                                                            "call_id": str(msg_dict.get("call_id", ""))
+                                                        },
+                                                        android=messaging.AndroidConfig(
+                                                            priority="high",
+                                                            ttl=datetime.timedelta(seconds=0)
+                                                        ),
+                                                        token=fcm_token
+                                                    )
+                                                    messaging.send(message)
+                                                    logger.info(f"📞 FCM Call Termination push ({event_name}) sent to {recipient_id}")
+                                                except Exception as e:
+                                                    logger.error(f"FCM Call Termination Push Error: {str(e)}")
+                                            asyncio.create_task(asyncio.to_thread(send_cancel_push))
+                                except Exception as e:
+                                    logger.error(f"Failed to dispatch FCM call cancellation push in call websocket: {str(e)}")
                         continue
                 
                 # Fallback: If DB routing fails or room is a demo string, broadcast to all OTHER connected users

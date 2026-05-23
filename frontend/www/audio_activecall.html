@@ -292,6 +292,7 @@
   <!-- THE ULTIMATE FIX: Using Video tag for Audio ensures browsers activate high-priority decoder thread -->
   <video id="remoteAudio" autoplay playsinline style="display:block"></video>
 
+  <script src="static/js/auth_guard.js"></script>
   <script src="static/js/config.js"></script>
   <script>
     // 1. UI Setup
@@ -320,15 +321,10 @@
       if (dotEl && color) dotEl.style.backgroundColor = color;
     }
 
-    // 2. Identity logic
-    const token = localStorage.getItem('token');
-    let myUserId = localStorage.getItem('user_id') || 'unknown_' + Math.floor(Math.random() * 10000);
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        myUserId = payload.sub || payload.id || payload.user_id || payload.owner_id || myUserId;
-      } catch (e) { }
-    }
+    // Global identity & signaling variables
+    let token = null;
+    let myUserId = 'unknown_' + Math.floor(Math.random() * 10000);
+    let ws = null;
 
     // 3. WebRTC Implementation
     let localStream;
@@ -402,74 +398,86 @@
       }, { once: true });
     }
 
-    const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
-    const ws = new WebSocket(wsUrl);
+    // Async main execution function
+    async function main() {
+      token = await window.NativeStorage.getItem('token');
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          myUserId = payload.sub || payload.id || payload.user_id || payload.owner_id || myUserId;
+        } catch (e) { }
+      }
 
-    ws.onopen = async () => {
-      console.log("Call room connected via WebSocket.");
-      setStatusText("Initializing WebRTC...", "#FFC700");
-      const mode = urlParams.get('mode');
-      const state = urlParams.get('state');
+      const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
+      ws = new WebSocket(wsUrl);
 
-      if (mode === 'caller') {
-        if (state === 'ringing') {
-          const timerEl = document.getElementById('callTimer');
-          if (timerEl) timerEl.textContent = "Ringing...";
-          
-          try { 
-            if (!outgoingAudio) {
-              outgoingAudio = new Audio('./sounds/caller_tune.mp3');
-              outgoingAudio.loop = true;
+      ws.onopen = async () => {
+        console.log("Call room connected via WebSocket.");
+        setStatusText("Initializing WebRTC...", "#FFC700");
+        const mode = urlParams.get('mode');
+        const state = urlParams.get('state');
+
+        if (mode === 'caller') {
+          if (state === 'ringing') {
+            const timerEl = document.getElementById('callTimer');
+            if (timerEl) timerEl.textContent = "Ringing...";
+            
+            try { 
+              if (!outgoingAudio) {
+                outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+                outgoingAudio.loop = true;
+              }
+              outgoingAudio.play(); 
+            } catch (e) { console.log("Outgoing play blocked:", e); }
+          }
+          console.log("Waiting for receiver, sending caller_ready ping...");
+          ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
+        } else {
+          ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
+        }
+
+        // Initialize hardware in background WITHOUT blocking signaling!
+        startMedia();
+      };
+
+      ws.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log("WS Event:", data.event || "SDP/ICE");
+
+          if (data.event === 'receiver_ready') {
+            const tEl = document.getElementById('callTimer');
+            if (tEl) tEl.textContent = "00:00";
+            if (!isCallInitiated) {
+               isCallInitiated = true;
+               initiateCall();
             }
-            outgoingAudio.play(); 
-          } catch (e) { console.log("Outgoing play blocked:", e); }
-        }
-        console.log("Waiting for receiver, sending caller_ready ping...");
-        ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
-      } else {
-        ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
-      }
+          } else if (data.event === 'caller_ready') {
+            // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!
+            const mode = urlParams.get('mode');
+            if (mode !== 'caller') {
+               console.log("Caller pinged, echoing receiver_ready...");
+               ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
+            }
+          } else if (data.event === 'call_ended' || data.event === 'call_declined') {
+            stopAllRinging();
+            terminateCall();
 
-      // Initialize hardware in background WITHOUT blocking signaling!
-      startMedia();
-    };
-
-    ws.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("WS Event:", data.event || "SDP/ICE");
-
-        if (data.event === 'receiver_ready') {
-          const tEl = document.getElementById('callTimer');
-          if (tEl) tEl.textContent = "00:00";
-          if (!isCallInitiated) {
-             isCallInitiated = true;
-             initiateCall();
+          } else if (data.offer) {
+            // We are receiver, we don't need to play incoming ringtone here because we already clicked Accept
+            await handleOffer(data.offer);
+          } else if (data.answer) {
+            await handleAnswer(data.answer);
+          } else if (data.candidate || data.iceCandidate) {
+            await handleRemoteIceCandidate(data.candidate || data.iceCandidate);
           }
-        } else if (data.event === 'caller_ready') {
-          // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!
-          const mode = urlParams.get('mode');
-          if (mode !== 'caller') {
-             console.log("Caller pinged, echoing receiver_ready...");
-             ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
-          }
-        } else if (data.event === 'call_ended' || data.event === 'call_declined') {
-          stopAllRinging();
-          terminateCall();
-
-        } else if (data.offer) {
-          // We are receiver, we don't need to play incoming ringtone here because we already clicked Accept
-          await handleOffer(data.offer);
-        } else if (data.answer) {
-
-          await handleAnswer(data.answer);
-        } else if (data.candidate || data.iceCandidate) {
-          await handleRemoteIceCandidate(data.candidate || data.iceCandidate);
+        } catch (err) {
+          console.error("External interference or stalled promise in WS message:", err);
         }
-      } catch (err) {
-        console.error("External interference or stalled promise in WS message:", err);
-      }
-    };
+      };
+    }
+
+    main();
 
     async function createPeerConnection() {
       console.log("Deploying stabilized RTCPeerConnection lifecycle hooks...");

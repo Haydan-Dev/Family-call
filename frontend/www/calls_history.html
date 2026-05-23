@@ -218,6 +218,7 @@
   </div>
 </div>
 
+<script src="static/js/auth_guard.js"></script>
 <script src="static/js/config.js"></script>
 <script>
   // State Management
@@ -226,14 +227,14 @@
   let myUserId = 'unknown';
 
   // Extract User ID from JWT
-  function getUserIdFromToken() {
-    const token = localStorage.getItem('token');
+  async function getUserIdFromToken() {
+    const token = await window.NativeStorage.getItem('token');
     if (!token) return 'unknown';
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       return payload.sub || payload.id || payload.user_id || 'unknown';
     } catch (e) {
-      return localStorage.getItem('user_id') || 'unknown';
+      return 'unknown';
     }
   }
 
@@ -358,7 +359,7 @@
 
   // Fetch Logic
   async function fetchCallHistory(userId) {
-    const token = localStorage.getItem('token');
+    const token = await window.NativeStorage.getItem('token');
     
     try {
       // Hit actual endpoint defined in callroutes.py
@@ -429,10 +430,10 @@
   document.getElementById('tabRejected').addEventListener('click', () => switchTab('tabRejected', 'rejected'));
 
   // Initialization
-  window.onload = () => {
-    myUserId = getUserIdFromToken();
+  window.addEventListener('DOMContentLoaded', async () => {
+    myUserId = await getUserIdFromToken();
     fetchCallHistory(myUserId);
-  };
+  });
 </script>
 </body>
 </html>

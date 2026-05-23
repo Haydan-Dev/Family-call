@@ -150,6 +150,7 @@
   </div>
 
   <!-- Standard System Setup & Audio Logic -->
+  <script src="static/js/auth_guard.js"></script>
   <script src="static/js/config.js"></script>
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -160,75 +161,86 @@
     document.getElementById('callerName').textContent = decodeURIComponent(callerName);
     document.getElementById('callerAvatar').textContent = decodeURIComponent(callerName).charAt(0).toUpperCase();
 
-    const token = localStorage.getItem('token');
-    let myUserId = localStorage.getItem('user_id') || 'unknown';
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        myUserId = payload.sub || payload.id || payload.user_id || myUserId;
-      } catch (e) {}
-    }
-
-    function tick() {
-      const now = new Date();
-      document.querySelector('.status-time').textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-    }
-    setInterval(tick, 10000);
-    tick();
-
-    const incomingAudio = new Audio('./sounds/ringtone.mp3');
-    incomingAudio.loop = true;
-    try { incomingAudio.play(); } catch(e) { console.log("Blocked:", e); }
-
-    function stopRinging() {
-      incomingAudio.pause();
-      incomingAudio.currentTime = 0;
-    }
-
-    const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      console.log("Listening for incoming signaling...");
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.event === 'call_cancelled') {
-        stopRinging();
-        window.location.href = `chat.html?room_id=${roomId}`;
-      }
-    };
-
-    document.getElementById('acceptBtn').onclick = () => {
-      stopRinging();
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ event: 'call_accepted', room_id: roomId }));
-      }
-      setTimeout(() => {
-         const callIdParam = callId ? `&call_id=${callId}` : '';
-         window.location.href = `audio_activecall.html?room_id=${roomId}&mode=receiver&call_type=audio&name=${encodeURIComponent(callerName)}${callIdParam}`;
-      }, 100);
-    };
-
-    document.getElementById('declineBtn').onclick = async () => {
-      stopRinging();
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ event: 'call_declined', room_id: roomId }));
-      }
-      if (callId) {
+    (async function init() {
+      const token = await window.NativeStorage.getItem('token');
+      let myUserId = 'unknown';
+      if (token) {
         try {
-          await fetch(`${BASE_URL}/calls/status_update/${callId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ call_status: 'rejected' })
-          });
-        } catch(e) { console.error("Error updating call status", e); }
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          myUserId = payload.sub || payload.id || payload.user_id || myUserId;
+        } catch (e) {}
       }
-      setTimeout(() => {
-         window.location.href = `chat.html?room_id=${roomId}`;
-      }, 100);
-    };
+
+      function tick() {
+        const now = new Date();
+        document.querySelector('.status-time').textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+      }
+      setInterval(tick, 10000);
+      tick();
+
+      const incomingAudio = new Audio('./sounds/ringtone.mp3');
+      incomingAudio.loop = true;
+      try { incomingAudio.play(); } catch(e) { console.log("Blocked:", e); }
+
+      function stopRinging() {
+        incomingAudio.pause();
+        incomingAudio.currentTime = 0;
+      }
+
+      const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("Listening for incoming signaling...");
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === 'call_cancelled') {
+          stopRinging();
+          window.location.href = `chat.html?room_id=${roomId}`;
+        }
+      };
+
+      document.getElementById('acceptBtn').onclick = async () => {
+        stopRinging();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ event: 'call_accepted', room_id: roomId }));
+        }
+        if (callId) {
+          try {
+            await fetch(`${BASE_URL}/calls/status_update/${callId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ call_status: 'ongoing' })
+            });
+          } catch(e) { console.error("Failed to PATCH call status to ongoing", e); }
+        }
+        setTimeout(() => {
+           const callIdParam = callId ? `&call_id=${callId}` : '';
+           window.location.href = `audio_activecall.html?room_id=${roomId}&mode=receiver&call_type=audio&name=${encodeURIComponent(callerName)}${callIdParam}`;
+        }, 100);
+      };
+
+      document.getElementById('declineBtn').onclick = async () => {
+        stopRinging();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ event: 'call_declined', room_id: roomId }));
+        }
+        if (callId) {
+          try {
+            await fetch(`${BASE_URL}/calls/status_update/${callId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ call_status: 'rejected' })
+            });
+          } catch(e) { console.error("Error updating call status", e); }
+        }
+        setTimeout(() => {
+           window.location.href = `chat.html?room_id=${roomId}`;
+        }, 100);
+      };
+    })();
   </script>
 </body>
 </html>

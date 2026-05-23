@@ -1,6 +1,6 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // 1. Core Setup & Authentication
-  const token = localStorage.getItem('token');
+  const token = await window.NativeStorage.getItem('token');
   if (!token) {
     window.location.href = 'login.html';
     return;
@@ -26,12 +26,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Parse JWT to find user ID for distinguishing sender/receiver
   let myUserId = null;
+  let myUserEmail = null;
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     myUserId = payload.sub || payload.id || payload.user_id || payload.owner_id || null;
+    myUserEmail = payload.email || payload.sub || '';
   } catch (e) {
-    console.warn("Could not parse JWT token for user ID");
+    console.warn("Could not parse JWT token for user ID/email");
   }
+
+  // Define global handleAndroidIntent so native code can evaluate it
+  window.handleAndroidIntent = function(data) {
+    console.log('🚨 [handleAndroidIntent in chat] Received custom native intent:', JSON.stringify(data));
+    if (!data || !data.event) return;
+
+    if (data.event === 'incoming_call') {
+      const callType = data.call_type || 'video';
+      const roomId = data.room_id || '';
+      const callId = data.call_id || '';
+      const callerName = encodeURIComponent(data.caller_name || 'Family');
+
+      console.log(`🚨 Routing to incoming call screen: type=${callType}, room=${roomId}`);
+      if (callType === 'audio') {
+        window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+      } else {
+        window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+      }
+    }
+  };
 
   // --- STRANGER DANGER BANNER LOGIC ---
   const strangerBanner = document.getElementById('strangerBanner');
@@ -712,8 +734,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Start App & WebSockets
   fetchHistory();
 
-  function connectWebSocket() {
-    const token = localStorage.getItem('token');
+  async function connectWebSocket() {
+    const token = await window.NativeStorage.getItem('token');
     if (!token) return;
 
     window.ws = new WebSocket(`${WS_URL}/ws/chat/${roomId}?token=${token}`);
@@ -1329,7 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
     voiceCallBtn.addEventListener('click', async () => {
       PermissionGuard.intercept({ audio: true }, async () => {
         const recipientName = document.getElementById('roomTitle')?.textContent || 'Family Member';
-        const myName = localStorage.getItem('user_email')?.split('@')[0] || 'Family Member';
+        const myName = myUserEmail ? myUserEmail.split('@')[0] : 'Family Member';
 
         let callId = null;
         try {
@@ -1370,7 +1392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     videoCallBtn.addEventListener('click', async () => {
       PermissionGuard.intercept({ audio: true, video: true }, async () => {
         const recipientName = document.getElementById('roomTitle')?.textContent || 'Family Member';
-        const myName = localStorage.getItem('user_email')?.split('@')[0] || 'Family Member';
+        const myName = myUserEmail ? myUserEmail.split('@')[0] : 'Family Member';
 
         let callId = null;
         try {

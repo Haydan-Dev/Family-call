@@ -5,6 +5,7 @@ from typing import Literal
 class Call_logs(BaseModel):
     caller_id : str 
     receiver_id : str 
+    room_id : str = ""
     call_type : Literal["audio","video"]
     call_status : Literal["ringing", "ongoing", "missed", "rejected", "ended"] = "ringing"
     started_at : dt.datetime = Field(default_factory=lambda:dt.datetime.now(dt.timezone.utc))

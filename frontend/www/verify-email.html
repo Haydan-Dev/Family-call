@@ -276,8 +276,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (response.ok) {
         const data = await response.json();
-        // Save JWT to localStorage
-        localStorage.setItem('token', data.access_token);
+        // Save JWT to NativeStorage
+        await window.NativeStorage.setItem('token', data.access_token);
         
         // Success Transition
         document.getElementById('stepVerify').classList.add('hidden-step');

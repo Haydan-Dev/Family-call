@@ -431,6 +431,7 @@
       </div>
   </div>
 
+  <script src="static/js/auth_guard.js"></script>
   <script src="static/js/config.js"></script>
   <script>
     // 1. Parse URL State
@@ -450,15 +451,10 @@
     }
     tick(); setInterval(tick, 10000);
 
-    // 3. Identity
-    const token = localStorage.getItem('token');
-    let myUserId = localStorage.getItem('user_id') || 'unknown';
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        myUserId = payload.sub || payload.id || payload.user_id || myUserId;
-      } catch (e) { }
-    }
+    // Global credentials and websocket variables
+    let token = null;
+    let myUserId = 'unknown';
+    let ws = null;
 
     // 4. WebSocket Event listener for call acceptance
     const outgoingAudio = new Audio('./sounds/caller_tune.mp3');
@@ -470,39 +466,50 @@
       outgoingAudio.currentTime = 0;
     }
 
-    const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      console.log("Outgoing signaling websocket linked.");
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log("WebSocket Rx:", data.event);
-
-      if (data.event === 'call_accepted' || data.event === 'receiver_ready') {
-        // Redirect caller to real active call screen
-        stopRinging();
-        const lbl = document.getElementById('statusLbl');
-        lbl.textContent = 'Connected';
-        lbl.style.color = '#25D366';
-        setTimeout(() => {
-          const callIdParam = callId ? `&call_id=${callId}` : '';
-          window.location.href = `audio_activecall.html?room_id=${roomId}&mode=caller&call_type=audio&name=${encodeURIComponent(recipientName)}${callIdParam}`;
-        }, 500);
+    // Async IIFE to fetch persistent credentials and establish signaling
+    (async function init() {
+      token = await window.NativeStorage.getItem('token');
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          myUserId = payload.sub || payload.id || payload.user_id || myUserId;
+        } catch (e) { }
       }
-      else if (data.event === 'call_declined') {
-        stopRinging();
-        const lbl = document.getElementById('statusLbl');
-        lbl.textContent = 'Call Declined';
-        lbl.style.color = '#c0392b';
-        document.getElementById('dotsEl').style.opacity = '0';
-        setTimeout(() => {
-          window.location.href = `chat.html?room_id=${roomId}`;
-        }, 2000);
-      }
-    };
+
+      const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("Outgoing signaling websocket linked.");
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log("WebSocket Rx:", data.event);
+
+        if (data.event === 'call_accepted' || data.event === 'receiver_ready') {
+          // Redirect caller to real active call screen
+          stopRinging();
+          const lbl = document.getElementById('statusLbl');
+          lbl.textContent = 'Connected';
+          lbl.style.color = '#25D366';
+          setTimeout(() => {
+            const callIdParam = callId ? `&call_id=${callId}` : '';
+            window.location.href = `audio_activecall.html?room_id=${roomId}&mode=caller&call_type=audio&name=${encodeURIComponent(recipientName)}${callIdParam}`;
+          }, 500);
+        }
+        else if (data.event === 'call_declined') {
+          stopRinging();
+          const lbl = document.getElementById('statusLbl');
+          lbl.textContent = 'Call Declined';
+          lbl.style.color = '#c0392b';
+          document.getElementById('dotsEl').style.opacity = '0';
+          setTimeout(() => {
+            window.location.href = `chat.html?room_id=${roomId}`;
+          }, 2000);
+        }
+      };
+    })();
 
     // 5. Interactivity
     let muted = false;

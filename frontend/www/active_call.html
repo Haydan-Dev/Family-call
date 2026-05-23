@@ -360,6 +360,7 @@
 
   </div><!-- /.call-stage -->
 
+  <script src="static/js/auth_guard.js"></script>
   <script src="static/js/config.js"></script>
   <script>
     // Live timer implementation
@@ -380,7 +381,7 @@
 
     // ── WebRTC & Signaling Implementation ──
     const urlParams = new URLSearchParams(window.location.search);
-    const roomId = urlParams.get('room_id') || localStorage.getItem('last_room_id') || 'demo_room';
+    const roomId = urlParams.get('room_id') || 'demo_room'; // Fallback room ID if none provided
     const myName = urlParams.get('name') || 'Family Member';
     const callId = urlParams.get('call_id');
 
@@ -410,16 +411,10 @@
       callNameEl.textContent = decodeURIComponent(myName);
     }
 
-    const token = localStorage.getItem('token');
+    // Global variables for authentication and signaling
+    let token = null;
     let myUserId = 'demo_user_' + Math.floor(Math.random() * 10000);
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        myUserId = payload.sub || payload.id || payload.user_id || payload.owner_id || myUserId;
-      } catch (e) {
-        console.warn("Could not parse token");
-      }
-    }
+    let ws = null;
 
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
@@ -491,80 +486,94 @@
       }, { once: true });
     }
 
-    // Connect WebSocket and setup signaling
-    const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = async () => {
-      console.log("Signaling socket connected.");
-      const mode = urlParams.get('mode');
-      const state = urlParams.get('state');
-
-      // 🔥 Send ready signals IMMEDIATELY so we don't wait for hardware before signaling!
-      if (mode === 'caller') {
-        if (state === 'ringing') {
-          const timerEl = document.getElementById('callTimer');
-          if (timerEl) timerEl.textContent = "Ringing...";
-          
-          try { 
-            if (!outgoingAudio) {
-              outgoingAudio = new Audio('./sounds/caller_tune.mp3');
-              outgoingAudio.loop = true;
-            }
-            outgoingAudio.play(); 
-          } catch (e) { console.log("Outgoing play blocked:", e); }
+    // Async main execution function
+    async function main() {
+      token = await window.NativeStorage.getItem('token');
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          myUserId = payload.sub || payload.id || payload.user_id || payload.owner_id || myUserId;
+        } catch (e) {
+          console.warn("Could not parse token");
         }
-        console.log("Waiting for receiver, sending caller_ready ping...");
-        ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
-      } else {
-        // Receiver notifies system they are ready for offer
-        console.log("Receiver signaling ready before media starts.");
-        ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
       }
-      
-      // Initialize hardware concurrently with signaling, BUT NO AWAIT!
-      startMedia();
-    };
 
-    ws.onmessage = async (event) => {
-      const data = JSON.parse(event.data);
-      if (data.event === 'call_declined') {
-        console.log("Receiver declined the call. Redirecting...");
-        stopAllRinging();
-        endCall(false);
-      } else if (data.event === 'call_ended') {
-        console.log("Remote participant ended the call.");
-        stopAllRinging();
-        endCall(false);
+      // Connect WebSocket and setup signaling
+      const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
+      ws = new WebSocket(wsUrl);
 
-      } else if (data.event === 'receiver_ready') {
-        console.log("Receiver is ready. Initiating WebRTC handshakes...");
-        const timerEl = document.getElementById('callTimer');
-        if (timerEl) timerEl.textContent = "00:00";
-        if (!isCallInitiated) {
-             isCallConnected = true;
-             isCallInitiated = true;
-             initiateCall();
-        }
-      } else if (data.event === 'caller_ready') {
-        // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!
+      ws.onopen = async () => {
+        console.log("Signaling socket connected.");
         const mode = urlParams.get('mode');
-        if (mode !== 'caller') {
-           console.log("Caller pinged, echoing receiver_ready...");
-           ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
+        const state = urlParams.get('state');
+
+        // 🔥 Send ready signals IMMEDIATELY so we don't wait for hardware before signaling!
+        if (mode === 'caller') {
+          if (state === 'ringing') {
+            const timerEl = document.getElementById('callTimer');
+            if (timerEl) timerEl.textContent = "Ringing...";
+            
+            try { 
+              if (!outgoingAudio) {
+                outgoingAudio = new Audio('./sounds/caller_tune.mp3');
+                outgoingAudio.loop = true;
+              }
+              outgoingAudio.play(); 
+            } catch (e) { console.log("Outgoing play blocked:", e); }
+          }
+          console.log("Waiting for receiver, sending caller_ready ping...");
+          ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
+        } else {
+          // Receiver notifies system they are ready for offer
+          console.log("Receiver signaling ready before media starts.");
+          ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
         }
+        
+        // Initialize hardware concurrently with signaling, BUT NO AWAIT!
+        startMedia();
+      };
+
+      ws.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === 'call_declined') {
+          console.log("Receiver declined the call. Redirecting...");
+          stopAllRinging();
+          endCall(false);
+        } else if (data.event === 'call_ended') {
+          console.log("Remote participant ended the call.");
+          stopAllRinging();
+          endCall(false);
+
+        } else if (data.event === 'receiver_ready') {
+          console.log("Receiver is ready. Initiating WebRTC handshakes...");
+          const timerEl = document.getElementById('callTimer');
+          if (timerEl) timerEl.textContent = "00:00";
+          if (!isCallInitiated) {
+               isCallConnected = true;
+               isCallInitiated = true;
+               initiateCall();
+          }
+        } else if (data.event === 'caller_ready') {
+          // Caller just joined. If I am the receiver, I must resend receiver_ready to unblock them!
+          const mode = urlParams.get('mode');
+          if (mode !== 'caller') {
+             console.log("Caller pinged, echoing receiver_ready...");
+             ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
+          }
         } else if (data.offer) {
           // We are receiver, we don't need to play incoming ringtone here because we already clicked Accept
           await handleOffer(data.offer);
-      } else if (data.answer) {
+        } else if (data.answer) {
+          await handleAnswer(data.answer);
+        } else if (data.candidate) {
+          await handleNewIceCandidate(data.candidate);
+        } else if (data.iceCandidate) {
+          await handleNewIceCandidate(data.iceCandidate);
+        }
+      };
+    }
 
-        await handleAnswer(data.answer);
-      } else if (data.candidate) {
-        await handleNewIceCandidate(data.candidate);
-      } else if (data.iceCandidate) {
-        await handleNewIceCandidate(data.iceCandidate);
-      }
-    };
+    main();
 
     async function createPeerConnection() {
       console.log("Creating RTCPeerConnection...");

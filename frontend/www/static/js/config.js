@@ -1,5 +1,5 @@
 // Cloudflare Tunnel Testing Configuration
-const TUNNEL_DOMAIN = "chains-mia-waiting-gmt.trycloudflare.com";
+const TUNNEL_DOMAIN = "cheese-robot-rainbow-warranty.trycloudflare.com";
 
 // NO Port numbers here! Cloudflare handles it automatically.
 const BASE_URL = `https://${TUNNEL_DOMAIN}`; // Secure Fetch
@@ -18,7 +18,7 @@ console.log("🚀 Cloudflare Testing via:", WS_URL);
 
 // Global Authenticated Fetch Wrapper
 async function authFetch(url, options = {}) {
-  const token = localStorage.getItem('token');
+  const token = await window.NativeStorage.getItem('token');
   if (!options.headers) options.headers = {};
   if (token) options.headers['Authorization'] = `Bearer ${token}`;
 
@@ -30,7 +30,7 @@ async function authFetch(url, options = {}) {
 
   const res = await fetch(url, options);
   if (res.status === 401) {
-    localStorage.removeItem('token');
+    await window.NativeStorage.removeItem('token');
     window.location.href = 'login.html';
   }
   return res;
