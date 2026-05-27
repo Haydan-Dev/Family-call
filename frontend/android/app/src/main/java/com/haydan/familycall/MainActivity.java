@@ -45,6 +45,28 @@ public class MainActivity extends BridgeActivity {
         
         createNotificationChannels();
         
+        // 🚨 CRITICAL for Android 14+ (API 34+): USE_FULL_SCREEN_INTENT is revoked by default.
+        // Without this, our incoming call FullScreenIntent notification gets silently swallowed
+        // and the Realme/OPPO/Vivo device stays dead silent in killed state.
+        checkAndRequestFullScreenIntentPermission();
+        
+        // Android 13+ (API 33+) requires explicit POST_NOTIFICATIONS permission
+        checkAndRequestPostNotifications();
+        
+        // Display Over Other Apps (SYSTEM_ALERT_WINDOW) - Golden ticket for Realme/Xiaomi
+        checkAndRequestOverlayPermission();
+
+        // Also enforce auto-start for Chinese OEMs (Realme, Xiaomi, etc.)
+        checkAndRequestAutoStartNative();
+        
+        // 🔋 Request battery optimization exemption (whitelist from Doze mode)
+        // This is the #1 reason FCM pushes get silently dropped on Chinese OEMs
+        requestBatteryOptimizationExemption();
+        
+        // 🚨 Realme/Xiaomi/Oppo HIDDEN PERMISSIONS Bypass
+        // Opens the App Info screen so the user can manually enable "Show on lock screen" etc.
+        openAppInfoForProprietaryPermissions();
+        
         // Apply UI flags (window flags, clear notifications) — data already extracted above
         applyIntentUiEffects(getIntent());
     }
@@ -104,6 +126,132 @@ public class MainActivity extends BridgeActivity {
         if (!autoStartRequested) {
             requestAutoStartPermission();
             prefs.edit().putBoolean("auto_start_requested_v1", true).apply();
+        }
+    }
+
+    /**
+     * 🚨 CRITICAL for Android 14+ (API 34+) / targetSdk 34+:
+     * Google revokes USE_FULL_SCREEN_INTENT by default for non-calling apps.
+     * Without this permission, our FullScreenIntent notifications (which wake the device
+     * from killed/locked state) are silently suppressed by the OS.
+     * 
+     * This method checks the permission and opens system settings if needed.
+     * Uses SharedPreferences to only prompt once per app lifecycle.
+     */
+    private void checkAndRequestFullScreenIntentPermission() {
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14 (UPSIDE_DOWN_CAKE) and above
+            NotificationManager notifManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (notifManager != null && !notifManager.canUseFullScreenIntent()) {
+                Log.e(TAG, "🚨 USE_FULL_SCREEN_INTENT is REVOKED! Opening settings...");
+                
+                // Only prompt once per install to avoid annoying the user
+                SharedPreferences prefs = getSharedPreferences("FamilyCallPrefs", Context.MODE_PRIVATE);
+                boolean alreadyPrompted = prefs.getBoolean("fsi_permission_prompted_v1", false);
+                if (!alreadyPrompted) {
+                    prefs.edit().putBoolean("fsi_permission_prompted_v1", true).apply();
+                    try {
+                        Intent intent = new Intent("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT");
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to open FullScreenIntent settings: " + e.getMessage());
+                        // Fallback: open general app notification settings
+                        try {
+                            Intent fallback = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                            fallback.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName());
+                            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(fallback);
+                        } catch (Exception ex) {
+                            Log.e(TAG, "Fallback notification settings also failed: " + ex.getMessage());
+                        }
+                    }
+                }
+            } else {
+                Log.d(TAG, "✅ USE_FULL_SCREEN_INTENT is GRANTED. Killed state wake will work.");
+            }
+        }
+    }
+
+    private void checkAndRequestPostNotifications() {
+        if (Build.VERSION.SDK_INT >= 33) { // Android 13
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) 
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1002);
+            }
+        }
+    }
+
+    private void checkAndRequestOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                SharedPreferences prefs = getSharedPreferences("FamilyCallPrefs", Context.MODE_PRIVATE);
+                boolean alreadyAsked = prefs.getBoolean("overlay_asked_v1", false);
+                if (!alreadyAsked) {
+                    prefs.edit().putBoolean("overlay_asked_v1", true).apply();
+                    try {
+                        Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                        Log.d(TAG, "📺 Requested SYSTEM_ALERT_WINDOW (Display over other apps)");
+                    } catch (Exception e) {}
+                }
+            }
+        }
+    }
+
+    /**
+     * 🔋 Request battery optimization exemption (whitelist from Doze mode).
+     * Uses the standard Android API ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+     * which shows a one-tap system dialog. This is the official method for VoIP apps.
+     */
+    @android.annotation.SuppressLint("BatteryLife")
+    private void requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                SharedPreferences prefs = getSharedPreferences("FamilyCallPrefs", Context.MODE_PRIVATE);
+                boolean alreadyAsked = prefs.getBoolean("battery_opt_asked_v1", false);
+                if (!alreadyAsked) {
+                    prefs.edit().putBoolean("battery_opt_asked_v1", true).apply();
+                    try {
+                        Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                        Log.d(TAG, "🔋 Battery optimization exemption dialog shown");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to show battery optimization dialog: " + e.getMessage());
+                    }
+                }
+            } else {
+                Log.d(TAG, "✅ Battery optimization already exempted");
+            }
+        }
+    }
+
+    /**
+     * 🚨 HIDDEN PERMISSIONS BYPASS FOR CHINESE OEMS
+     * Realme, Xiaomi, and Oppo hide critical permissions like "Show on lock screen"
+     * and "Display pop-up windows in background". These CANNOT be requested via code.
+     * This method forces the user into the App Info screen so they can manually enable them.
+     */
+    private void openAppInfoForProprietaryPermissions() {
+        String manufacturer = Build.MANUFACTURER.toLowerCase();
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("vivo") || manufacturer.contains("oneplus")) {
+            SharedPreferences prefs = getSharedPreferences("FamilyCallPrefs", Context.MODE_PRIVATE);
+            boolean alreadyAsked = prefs.getBoolean("app_info_settings_asked_v1", false);
+            if (!alreadyAsked) {
+                prefs.edit().putBoolean("app_info_settings_asked_v1", true).apply();
+                try {
+                    Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                    Log.d(TAG, "📺 Redirected to App Info for proprietary permissions.");
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to open App Info settings: " + e.getMessage());
+                }
+            }
         }
     }
 

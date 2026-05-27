@@ -52,7 +52,9 @@ public class IncomingCallActivity extends Activity {
         roomId = getIntent().getStringExtra("room_id");
         callId = getIntent().getStringExtra("call_id");
         callerName = getIntent().getStringExtra("caller_name");
-        if (callerName == null) callerName = "Family Member";
+        if (callerName == null || callerName.trim().isEmpty()) {
+            callerName = "Family Member";
+        }
         callType = getIntent().getStringExtra("call_type");
         
         setupUI();
@@ -89,7 +91,10 @@ public class IncomingCallActivity extends Activity {
         nameText.setGravity(Gravity.CENTER);
         
         TextView statusText = new TextView(this);
-        statusText.setText("Family Call • " + (callType != null ? callType.substring(0,1).toUpperCase() + callType.substring(1) : "Video"));
+        String displayCallType = (callType != null && !callType.trim().isEmpty()) 
+                                    ? callType.substring(0,1).toUpperCase() + callType.substring(1) 
+                                    : "Video";
+        statusText.setText("Family Call • " + displayCallType);
         statusText.setTextColor(Color.parseColor("#AAAAAA"));
         statusText.setTextSize(18);
         statusText.setGravity(Gravity.CENTER);
@@ -227,7 +232,7 @@ public class IncomingCallActivity extends Activity {
         new Thread(() -> {
             try {
                 // IMPORTANT: Update this if your tunnel domain changes, or keep it synced!
-                URL url = new URL("https://lowest-antiques-ceremony-formerly.trycloudflare.com/ws/decline");
+                URL url = new URL("https://opposition-maps-preparing-excellent.trycloudflare.com/ws/decline");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");

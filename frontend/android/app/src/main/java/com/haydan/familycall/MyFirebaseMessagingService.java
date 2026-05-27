@@ -82,15 +82,25 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     }
 
     private void showIncomingCallNotification(Map<String, String> data) {
-        String callerName = data.getOrDefault("caller_name", "Family Member");
-        if (callerName.trim().isEmpty()) callerName = "Family Member";
-        String callType = data.getOrDefault("call_type", "video");
+        String callerName = data.get("caller_name");
+        if (callerName == null || callerName.trim().isEmpty()) callerName = "Family Member";
+        String callType = data.get("call_type");
+        if (callType == null || callType.trim().isEmpty()) callType = "video";
         String roomId = data.getOrDefault("room_id", "");
         String callId = data.getOrDefault("call_id", "");
 
         wakeScreen();
 
+        String manufacturer = android.os.Build.MANUFACTURER.toLowerCase();
+        boolean isChineseOEM = manufacturer.contains("xiaomi") || manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("vivo") || manufacturer.contains("oneplus");
+
         try {
+            if (isChineseOEM) {
+                Log.d(TAG, "🚨 Chinese OEM detected! Bypassing TelecomManager ghost-ring bug and forcing custom banner!");
+                showFallbackNotification(callId, roomId, callerName, callType);
+                return; // Stop here, don't use TelecomManager
+            }
+
             android.telecom.TelecomManager telecomManager = (android.telecom.TelecomManager) getSystemService(Context.TELECOM_SERVICE);
             android.content.ComponentName componentName = new android.content.ComponentName(this, CallConnectionService.class);
             android.telecom.PhoneAccountHandle phoneAccountHandle = new android.telecom.PhoneAccountHandle(componentName, "FamilyCallAccount");
@@ -158,11 +168,10 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             if (mgr != null) mgr.createNotificationChannel(fallbackChannel);
         }
 
-        // Build intents — all go DIRECTLY to MainActivity
-        Intent mainIntent = new Intent(this, MainActivity.class);
-        mainIntent.putExtra("incoming_call", "true");
-        mainIntent.putExtra("call_id", callId);
+        // Build intents — all go DIRECTLY to IncomingCallActivity for instant native UI
+        Intent mainIntent = new Intent(this, IncomingCallActivity.class);
         mainIntent.putExtra("room_id", roomId);
+        mainIntent.putExtra("call_id", callId);
         mainIntent.putExtra("caller_name", callerName);
         mainIntent.putExtra("call_type", callType);
         mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -212,7 +221,8 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                 .setAutoCancel(true)
                 .setSound(ringtoneUri)
                 .setVibrate(new long[]{0, 1000, 500, 1000, 500, 1000})
-                .setFullScreenIntent(fullScreenPendingIntent, true)
+                // 🚨 REMOVED .setFullScreenIntent() because Realme completely blocks the entire notification 
+                // if FullScreen permissions aren't fully satisfied. Removing it forces a standard Heads-Up banner!
                 .setContentIntent(fullScreenPendingIntent)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePendingIntent)
                 .addAction(android.R.drawable.ic_menu_call, "Accept", acceptPendingIntent);

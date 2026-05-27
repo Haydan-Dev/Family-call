@@ -1,5 +1,5 @@
 // Cloudflare Tunnel Testing Configuration
-const TUNNEL_DOMAIN = "lowest-antiques-ceremony-formerly.trycloudflare.com";
+const TUNNEL_DOMAIN = "opposition-maps-preparing-excellent.trycloudflare.com";
 
 // NO Port numbers here! Cloudflare handles it automatically.
 const BASE_URL = `https://${TUNNEL_DOMAIN}`; // Secure Fetch
