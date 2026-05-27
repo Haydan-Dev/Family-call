@@ -290,8 +290,9 @@
   <script src="static/js/chat.js" defer></script>
 
   <!-- ZEGOCLOUD CALL CONTAINER — must be direct child of body, outside .phone which has overflow:hidden -->
-  <!-- We add bottom margin and translateZ to ensure Zego's fixed UI is pushed above the Android gesture navigation bar -->
-  <div id="zegoCallContainer" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: calc(100dvh - 32px); z-index: 99999; background: #000; transform: translateZ(0); touch-action: auto !important; pointer-events: auto !important;"></div>
+  <!-- We use border-bottom to push Zego's fixed UI up by 32px while keeping the bottom of the screen completely black -->
+  <div id="zegoCallContainer" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; box-sizing: border-box; border-bottom: 32px solid #000; z-index: 99999; background: #000; transform: translateZ(0); touch-action: auto !important; pointer-events: auto !important;"></div>
+
 
 
 </body>
