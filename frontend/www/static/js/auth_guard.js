@@ -92,6 +92,14 @@ window.NativeStorage = {
               window.location.href = `chat.html?room_id=${roomId}&name=${senderName}&auto_answer=${autoAnswer}&call_type=${callType}&incoming_call=true`;
               return; // Stop further execution
             }
+          } else if (callData.event === 'decline_call_action') {
+            const roomId = callData.room_id || '';
+            const callId = callData.call_id || '';
+            console.log(`🚨 [auth_guard IIFE] Routing cold-boot decline to chat.html`);
+            if (roomId) {
+              window.location.href = `chat.html?room_id=${roomId}&decline_call=true&call_id=${callId}`;
+              return; // Stop further execution
+            }
           }
         } else {
           console.log("🚨 [auth_guard IIFE] No pending intent extras found.");

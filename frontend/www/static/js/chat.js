@@ -1365,9 +1365,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         turnOnCameraWhenJoining: callType === 'video',
         showPreJoinView: false,
         showLeaveRoomConfirmDialog: false,
-        onLeaveRoom: cleanupCall,
-        onReturnToHomeScreen: cleanupCall,
-        onHangUp: cleanupCall
+        onLeaveRoom: () => setTimeout(cleanupCall, 800),
+        onReturnToHomeScreen: () => setTimeout(cleanupCall, 800),
+        onHangUp: () => setTimeout(cleanupCall, 800)
       });
 
     } catch (error) {
@@ -1598,11 +1598,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Reject incoming call button
   const rejectCallBtn = document.getElementById('rejectCallBtn');
   if (rejectCallBtn) {
-    rejectCallBtn.addEventListener('click', () => {
+    rejectCallBtn.addEventListener('click', async () => {
       console.log('🔴 Rejecting incoming call...');
       dismissIncomingCall();
 
-      // Notify caller that we declined
+      // Notify caller that we declined (via new HTTP API for 100% reliability even if WS is down)
+      try {
+        await authFetch(`${BASE_URL}/ws/decline`, {
+          method: 'POST',
+          body: JSON.stringify({
+            room_id: roomId,
+            call_id: ''
+          })
+        });
+      } catch (err) {
+        console.error("Failed to sync decline via HTTP:", err);
+      }
+
+      // Also try websocket just in case
       if (window.ws && window.ws.readyState === WebSocket.OPEN) {
         window.ws.send(JSON.stringify({
           event: 'call_declined',
@@ -1630,9 +1643,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ── Cold Boot Auto-Answer Support ──
+  // ── Cold Boot Auto-Answer / Auto-Decline Support ──
   const autoAnswerParam = urlParams.get('auto_answer') === 'true';
-  if (autoAnswerParam) {
+  const declineCallParam = urlParams.get('decline_call') === 'true';
+
+  if (declineCallParam) {
+    console.log("⚡ Cold Boot: Auto-declining incoming call!");
+    setTimeout(() => {
+      const rejectCallBtn = document.getElementById('rejectCallBtn');
+      if (rejectCallBtn) rejectCallBtn.click();
+      setTimeout(() => { window.location.href = 'home.html'; }, 500);
+    }, 500);
+  } else if (autoAnswerParam) {
     console.log("⚡ Cold Boot: Auto-answering incoming call!");
     const callTypeParam = urlParams.get('call_type') || 'video';
     pendingCallType = callTypeParam;

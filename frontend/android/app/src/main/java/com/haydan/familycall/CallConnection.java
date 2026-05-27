@@ -9,6 +9,10 @@ import android.telecom.DisconnectCause;
 import android.telecom.TelecomManager;
 import android.util.Log;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 public class CallConnection extends Connection {
     private static final String TAG = "CallConnection";
     private Context context;
@@ -70,9 +74,31 @@ public class CallConnection extends Connection {
         Intent broadcast = new Intent("com.haydan.familycall.ACTION_CALL_CANCELLED");
         broadcast.putExtra("room_id", roomId);
         context.sendBroadcast(broadcast);
+        
+        // Fire direct HTTP sync to backend so caller drops instantly
+        new Thread(() -> {
+            try {
+                URL url = new URL("https://lowest-antiques-ceremony-formerly.trycloudflare.com/ws/decline");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                
+                String jsonInputString = "{\"room_id\": \"" + roomId + "\", \"call_id\": \"" + callId + "\"}";
+                
+                try (OutputStream os = conn.getOutputStream()) {
+                    byte[] input = jsonInputString.getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+                
+                int code = conn.getResponseCode();
+                Log.d(TAG, "Native HTTP decline fired! Response code: " + code);
+            } catch (Exception e) {
+                Log.e(TAG, "Native HTTP decline failed: " + e.getMessage());
+            }
+        }).start();
 
-        // Also we can send a decline push here if needed, but usually we just let frontend/backend handle it
-        // Since app might be killed, we should probably hit the backend directly, but let's just wake main activity to decline
+        // Fallback for cold boot routing
         Intent intent = new Intent(context, MainActivity.class);
         intent.setAction("com.haydan.familycall.ACTION_DECLINE_CALL");
         intent.putExtra("room_id", roomId);

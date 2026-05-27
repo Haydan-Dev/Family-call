@@ -17,6 +17,11 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.graphics.drawable.GradientDrawable;
+
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class IncomingCallActivity extends Activity {
 
@@ -57,50 +62,74 @@ public class IncomingCallActivity extends Activity {
     private void setupUI() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.parseColor("#111111"));
+        root.setBackgroundColor(Color.parseColor("#1a1a1a"));
         root.setGravity(Gravity.CENTER);
+
+        // Circular avatar placeholder
+        TextView avatarText = new TextView(this);
+        avatarText.setText(callerName.substring(0, 1).toUpperCase());
+        avatarText.setTextColor(Color.WHITE);
+        avatarText.setTextSize(48);
+        avatarText.setGravity(Gravity.CENTER);
+        avatarText.setTypeface(null, Typeface.BOLD);
+        
+        GradientDrawable avatarBg = new GradientDrawable();
+        avatarBg.setShape(GradientDrawable.OVAL);
+        avatarBg.setColor(Color.parseColor("#2196F3"));
+        avatarText.setBackground(avatarBg);
+        
+        LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(250, 250);
+        avatarParams.setMargins(0, 0, 0, 60);
 
         TextView nameText = new TextView(this);
         nameText.setText(callerName);
         nameText.setTextColor(Color.WHITE);
-        nameText.setTextSize(36);
+        nameText.setTextSize(32);
         nameText.setTypeface(null, Typeface.BOLD);
         nameText.setGravity(Gravity.CENTER);
         
         TextView statusText = new TextView(this);
-        statusText.setText("Incoming " + (callType != null ? callType : "video") + " call...");
-        statusText.setTextColor(Color.parseColor("#FFC700"));
+        statusText.setText("Family Call • " + (callType != null ? callType.substring(0,1).toUpperCase() + callType.substring(1) : "Video"));
+        statusText.setTextColor(Color.parseColor("#AAAAAA"));
         statusText.setTextSize(18);
         statusText.setGravity(Gravity.CENTER);
-        statusText.setPadding(0, 20, 0, 150);
+        statusText.setPadding(0, 20, 0, 180);
 
         LinearLayout buttonLayout = new LinearLayout(this);
         buttonLayout.setOrientation(LinearLayout.HORIZONTAL);
         buttonLayout.setGravity(Gravity.CENTER);
 
+        // Decline Button
         Button declineButton = new Button(this);
-        declineButton.setText("Decline");
-        declineButton.setBackgroundColor(Color.parseColor("#F44336")); 
+        declineButton.setText("DECLINE");
         declineButton.setTextColor(Color.WHITE);
         declineButton.setTextSize(16);
-        declineButton.setPadding(60, 40, 60, 40);
+        declineButton.setTypeface(null, Typeface.BOLD);
+        GradientDrawable declineBg = new GradientDrawable();
+        declineBg.setCornerRadius(60);
+        declineBg.setColor(Color.parseColor("#FF3B30"));
+        declineButton.setBackground(declineBg);
+        declineButton.setElevation(8);
 
+        // Accept Button
         Button acceptButton = new Button(this);
-        acceptButton.setText("Answer");
-        acceptButton.setBackgroundColor(Color.parseColor("#4CAF50")); 
+        acceptButton.setText("ANSWER");
         acceptButton.setTextColor(Color.WHITE);
         acceptButton.setTextSize(16);
-        acceptButton.setPadding(60, 40, 60, 40);
+        acceptButton.setTypeface(null, Typeface.BOLD);
+        GradientDrawable acceptBg = new GradientDrawable();
+        acceptBg.setCornerRadius(60);
+        acceptBg.setColor(Color.parseColor("#34C759"));
+        acceptButton.setBackground(acceptBg);
+        acceptButton.setElevation(8);
 
-        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
+        LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(320, 140);
         btnParams.setMargins(40, 0, 40, 0);
         
         buttonLayout.addView(declineButton, btnParams);
         buttonLayout.addView(acceptButton, btnParams);
 
+        root.addView(avatarText, avatarParams);
         root.addView(nameText);
         root.addView(statusText);
         root.addView(buttonLayout);
@@ -189,10 +218,36 @@ public class IncomingCallActivity extends Activity {
             CallConnectionService.currentConnection = null;
         }
         
+        // 1. Send Native Intent (if app is warm)
         Intent broadcast = new Intent("com.haydan.familycall.ACTION_CALL_CANCELLED");
         broadcast.putExtra("room_id", roomId);
         sendBroadcast(broadcast);
         
+        // 2. Fire direct HTTP sync to backend so caller drops instantly
+        new Thread(() -> {
+            try {
+                // IMPORTANT: Update this if your tunnel domain changes, or keep it synced!
+                URL url = new URL("https://lowest-antiques-ceremony-formerly.trycloudflare.com/ws/decline");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                
+                String jsonInputString = "{\"room_id\": \"" + roomId + "\", \"call_id\": \"" + callId + "\"}";
+                
+                try (OutputStream os = conn.getOutputStream()) {
+                    byte[] input = jsonInputString.getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+                
+                int code = conn.getResponseCode();
+                Log.d(TAG, "Native HTTP decline fired! Response code: " + code);
+            } catch (Exception e) {
+                Log.e(TAG, "Native HTTP decline failed: " + e.getMessage());
+            }
+        }).start();
+
+        // 3. Fallback Intent for cold boot intercept via auth_guard.js
         Intent intent = new Intent(this, MainActivity.class);
         intent.setAction("com.haydan.familycall.ACTION_DECLINE_CALL");
         intent.putExtra("room_id", roomId);

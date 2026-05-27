@@ -112,13 +112,17 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             extras.putBundle(android.telecom.TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, callExtras);
             
             telecomManager.addNewIncomingCall(phoneAccountHandle, extras);
-            Log.d(TAG, "🚀 TelecomManager.addNewIncomingCall invoked successfully!");
+            Log.d(TAG, "📞 TelecomManager.addNewIncomingCall invoked successfully!");
+
+            // FORTIFICATION: Chinese OEMs (Xiaomi, Realme, Vivo) often block TelecomManager from waking the screen
+            // when the app is in the killed state. We ALWAYS post the FullScreenIntent notification to force the screen ON.
+            showFallbackNotification(callId, roomId, callerName, callType);
 
         } catch (SecurityException se) {
-            Log.e(TAG, "⚠️ SecurityException: Missing MANAGE_OWN_CALLS permission or account not enabled: " + se.getMessage());
+            Log.e(TAG, "🚨 SecurityException: Missing MANAGE_OWN_CALLS permission or account not enabled: " + se.getMessage());
             showFallbackNotification(callId, roomId, callerName, callType);
         } catch (Exception e) {
-            Log.e(TAG, "⚠️ Failed to use TelecomManager: " + e.getMessage());
+            Log.e(TAG, "🚨 Failed to use TelecomManager: " + e.getMessage());
             showFallbackNotification(callId, roomId, callerName, callType);
         }
     }

@@ -8,6 +8,13 @@ import json
 from bson import ObjectId
 from app.models.message import Message
 import datetime
+from pydantic import BaseModel
+from fastapi import BackgroundTasks
+
+class NativeDeclineRequest(BaseModel):
+    room_id: str
+    call_id: str
+
 router = APIRouter(
     prefix="/ws",
     tags=["WebSockets"]
@@ -22,6 +29,28 @@ async def get_ws_user_id(token: str):
         return user_id
     except JWTError:
         return None
+
+@router.post("/decline")
+async def native_decline_call(req: NativeDeclineRequest):
+    """
+    Called by Android Native Code (killed state UI) to instantly terminate a caller's ring.
+    """
+    try:
+        room_obj_id = ObjectId(req.room_id)
+        room = await db.conversations.find_one({"_id": room_obj_id})
+        if room:
+            # We want to send call_declined to everyone in the room to stop their ringing
+            for participant_id in room.get("participant_ids", []):
+                await manager.send_personal_message({
+                    "event": "call_declined",
+                    "room_id": req.room_id,
+                    "call_id": req.call_id
+                }, str(participant_id))
+        return {"status": "declined"}
+    except Exception as e:
+        import logging
+        logging.error(f"Native Decline Error: {e}")
+        return {"status": "error", "message": str(e)}
 
 @router.websocket("/global")
 async def global_websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
