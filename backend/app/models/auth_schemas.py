@@ -23,3 +23,7 @@ class VerifyForgotOTPRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     reset_token: str
     password: str = Field(..., min_length=8)
+
+class Verify2FARequest(BaseModel):
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6)

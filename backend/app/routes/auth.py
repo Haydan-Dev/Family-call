@@ -18,7 +18,8 @@ from app.models.auth_schemas import (
     LoginRequest,
     ForgotPasswordRequest,
     VerifyForgotOTPRequest,
-    ResetPasswordRequest
+    ResetPasswordRequest,
+    Verify2FARequest
 )
 from app.services.email_service import send_otp_email
 from app.utils.helpers import generate_otp
@@ -149,7 +150,7 @@ async def resend_signup_otp(data: ForgotPasswordRequest, background_tasks: Backg
 
 
 @router.post("/login")
-async def login(credentials: LoginRequest):
+async def login(credentials: LoginRequest, background_tasks: BackgroundTasks):
     email_lower = credentials.email.lower()
     
     user = await db.users.find_one({"email": email_lower})
@@ -174,6 +175,58 @@ async def login(credentials: LoginRequest):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Your email is not verified. Please verify your email first."
         )
+        
+    # Check 2FA
+    if user.get("is_2fa_enabled", False):
+        otp_code = generate_otp()
+        await db.otp_codes.delete_many({"email": email_lower, "purpose": "2fa_login"})
+        await db.otp_codes.insert_one({
+            "email": email_lower,
+            "otp": otp_code,
+            "purpose": "2fa_login",
+            "created_at": datetime.now(timezone.utc)
+        })
+        background_tasks.add_task(send_otp_email, email_lower, otp_code, "2fa_login")
+        return {"requires_2fa": True, "email": email_lower, "message": "2FA OTP sent"}
+        
+    # Set login timestamp
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"last_login_at": datetime.now(timezone.utc)}}
+    )
+    
+    # Generate Access Token
+    token_payload = {
+        "sub": str(user["_id"]),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    }
+    encoded_jwt = jwt.encode(token_payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    
+    return {"access_token": encoded_jwt, "token_type": "bearer", "user_email": email_lower}
+
+@router.post("/login/verify-2fa")
+async def verify_2fa(data: Verify2FARequest):
+    email_lower = data.email.lower()
+    
+    # Check OTP sandbox
+    otp_record = await db.otp_codes.find_one({
+        "email": email_lower,
+        "otp": data.code,
+        "purpose": "2fa_login"
+    })
+    
+    if not otp_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect or expired 2FA code."
+        )
+        
+    # Delete OTP
+    await db.otp_codes.delete_one({"_id": otp_record["_id"]})
+    
+    user = await db.users.find_one({"email": email_lower})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
         
     # Set login timestamp
     await db.users.update_one(

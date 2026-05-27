@@ -121,7 +121,7 @@ async def verify_otp(data: VerifyOTPRequest):
     return {"message": "Account created successfully.", "access_token": encoded_jwt, "user_email": user["email"]}
 
 @router.post("/login")
-async def login(user_data:UserLogin):
+async def login(user_data:UserLogin, background_tasks: BackgroundTasks):
     user_data.email = user_data.email.lower()
     existing_login = await db.users.find_one({"email":user_data.email})
     if not existing_login:
@@ -139,6 +139,19 @@ async def login(user_data:UserLogin):
     if not hash_check:
         raise HTTPException(status_code=401,detail="Invalid Email or Password")
         
+    # 2FA Check
+    if existing_login.get("is_2fa_enabled", False):
+        otp_code = generate_otp()
+        await db.otp_codes.delete_many({"email": user_data.email, "purpose": "2fa_login"})
+        await db.otp_codes.insert_one({
+            "email": user_data.email,
+            "otp": otp_code,
+            "purpose": "2fa_login",
+            "created_at": dt.datetime.now(dt.timezone.utc)
+        })
+        background_tasks.add_task(send_otp_email, user_data.email, otp_code, "2fa_login")
+        return {"requires_2fa": True, "email": user_data.email, "message": "2FA OTP sent"}
+        
     await db.users.update_one({"_id":existing_login["_id"]},{"$set":{"last_login_at":dt.datetime.now(dt.timezone.utc)}})
     
     token = {
@@ -148,6 +161,45 @@ async def login(user_data:UserLogin):
     encoded_jwt = jwt.encode(token, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     
     return {"Message":"Login Successfull","login_email":user_data.email,"access_token":encoded_jwt}
+
+@router.post("/login/verify-2fa")
+async def verify_2fa(data: VerifyOTPRequest):
+    email_lower = data.email.lower()
+    
+    # Check OTP sandbox
+    otp_record = await db.otp_codes.find_one({
+        "email": email_lower,
+        "otp": data.code,
+        "purpose": "2fa_login"
+    })
+    
+    if not otp_record:
+        raise HTTPException(
+            status_code=400,
+            detail="Incorrect or expired 2FA code."
+        )
+        
+    # Delete OTP
+    await db.otp_codes.delete_one({"_id": otp_record["_id"]})
+    
+    user = await db.users.find_one({"email": email_lower})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+        
+    # Set login timestamp
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"last_login_at": dt.datetime.now(dt.timezone.utc)}}
+    )
+    
+    # Generate Access Token
+    token = {
+        "sub": str(user["_id"]),
+        "exp": dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    }
+    encoded_jwt = jwt.encode(token, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    
+    return {"Message": "Login Successfull", "login_email": email_lower, "access_token": encoded_jwt}
 
 
 # ─────────────────────────────────────────────

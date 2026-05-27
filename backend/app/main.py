@@ -12,6 +12,8 @@ from app.routes.messageroutes import router as message_router
 from app.routes.callroutes import router as call_router
 from app.websockets.websocket_routes import router as websocket_router
 from app.routes.upload_routes import router as upload_router
+from app.routes.settings_routes import router as settings_router
+from app.routes.zegoroutes import router as zego_router
 from app.core.middlewares import core
 from app.core.firebase_config import initialize_firebase
 
@@ -45,3 +47,5 @@ app.include_router(message_router)
 app.include_router(call_router)
 app.include_router(websocket_router)
 app.include_router(upload_router)
+app.include_router(settings_router)
+app.include_router(zego_router)

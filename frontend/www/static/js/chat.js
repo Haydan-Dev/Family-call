@@ -36,21 +36,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Define global handleAndroidIntent so native code can evaluate it
-  window.handleAndroidIntent = function(data) {
+  window.handleAndroidIntent = function (data) {
     console.log('🚨 [handleAndroidIntent in chat] Received custom native intent:', JSON.stringify(data));
-    if (!data || !data.event) return;
-
-    if (data.event === 'incoming_call') {
-      const callType = data.call_type || 'video';
-      const roomId = data.room_id || '';
-      const callId = data.call_id || '';
-      const callerName = encodeURIComponent(data.caller_name || 'Family');
-
-      console.log(`🚨 Routing to incoming call screen: type=${callType}, room=${roomId}`);
-      if (callType === 'audio') {
-        window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-      } else {
-        window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
+    if (!data) return;
+    
+    if (data.event === 'answer_call_action') {
+      console.log("📲 Native answer intent intercepted in chat.js");
+      if (!pendingCallType) {
+         pendingCallType = data.call_type || 'video';
+      }
+      const acceptCallBtn = document.getElementById('acceptCallBtn');
+      if (acceptCallBtn) acceptCallBtn.click();
+    } else if (data.event === 'decline_call_action') {
+      console.log("🚫 Native decline intent intercepted in chat.js");
+      const rejectCallBtn = document.getElementById('rejectCallBtn');
+      if (rejectCallBtn) rejectCallBtn.click();
+    } else if (data.event === 'end_call_action') {
+      console.log("🛑 Native end call intent intercepted in chat.js");
+      if (window.zp) {
+        try {
+          window.zp.destroy();
+          window.zp = null;
+        } catch (e) {
+          console.log("Failed to destroy Zego instance:", e);
+        }
       }
     }
   };
@@ -749,41 +758,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const payload = JSON.parse(event.data);
 
-        if (payload.event === 'incoming_call') {
-          if (payload.call_type !== 'audio') {
-            try {
-              if (!incomingAudio) {
-                incomingAudio = new Audio('./sounds/ringtone.mp3');
-                incomingAudio.loop = true;
-              }
-              incomingAudio.play();
-            } catch (e) { console.log("Ringing blocked:", e); }
-          }
-          if (payload.call_type === 'audio') {
-            // Strict Audio Flow Redirect for Receiver
-            window.location.href = `audio_incommingcall.html?room_id=${payload.room_id}&caller_name=${encodeURIComponent(payload.caller_name || 'Family')}`;
-          } else {
-            showIncomingCall(payload.caller_name || 'Unknown', payload.room_id, payload.call_type || 'video', payload.call_id);
-          }
-          return;
-        }
 
-
-        if (payload.event === 'call_cancelled') {
-          console.log("Caller cancelled the call.");
-          stopAllRinging();
-          const overlay = document.getElementById('incomingCallOverlay');
-          if (overlay) {
-            overlay.style.display = 'none';
-          }
-          return; // Stop execution
-        }
-
-
-        if (payload.event === 'call_accepted' || payload.event === 'call_rejected') {
-          console.log("Call signaling received:", payload.event);
-          return; // Stop execution
-        }
 
         if (payload.event === 'MESSAGE_EDITED') {
           const bubble = document.querySelector(`.bubble[data-id="${payload.message_id}"]`);
@@ -1288,144 +1263,385 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('msgInput').focus();
   }
 
-  // ── Incoming Call Overlay Implementation ──
-  function showIncomingCall(callerName, roomID, callType, callId) {
-    const overlay = document.getElementById('incomingCallOverlay');
-    const nameEl = document.getElementById('incomingCallName');
-    const avatarEl = document.getElementById('incomingCallAvatar');
-    const typeEl = document.getElementById('incomingCallType');
+  // ================================================================
+  // ███ COMPLETE CALL SIGNALING + ZEGOCLOUD INTEGRATION ███
+  // Flow: Caller → WS "incoming_call" → Receiver sees overlay
+  //       Receiver accepts → WS "call_accepted" → Both join Zego room
+  //       Reject/Cancel → WS event → Close overlays
+  // ================================================================
 
-    if (overlay && nameEl && avatarEl && typeEl) {
-      nameEl.textContent = callerName;
-      avatarEl.textContent = callerName.charAt(0).toUpperCase();
-      typeEl.textContent = callType === 'audio' ? 'Voice Call' : 'Video Call';
-      overlay.style.display = 'flex';
+  // ── Pending Call State ──
+  let pendingCallType = null;     // 'audio' or 'video'
+  let pendingCallRoomId = null;   // The Zego room to join
+  let callRingingTimeout = null;  // Auto-cancel after 45s
+  let prefetchedZegoToken = null; // Used to eliminate 2s connection delay
 
-      const declineBtn = document.getElementById('declineCallOverlayBtn');
-      if (declineBtn) {
-        declineBtn.onclick = async () => {
-          if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-            window.ws.send(JSON.stringify({
-              event: "call_declined",
-              room_id: roomID
-            }));
-          }
-          stopAllRinging();
-          overlay.style.display = 'none';
+  // ── Audio: Outgoing caller tune & Incoming ringtone ──
+  function createLoopAudio(src) {
+    const a = new Audio(src);
+    a.loop = true;
+    a.volume = 1.0;
+    return a;
+  }
 
+  // ── Zego SDK Loader ──
+  function loadZegoSDK() {
+    return new Promise((resolve, reject) => {
+      if (window.ZegoUIKitPrebuilt) return resolve();
+      console.log("Loading Zego SDK dynamically...");
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/@zegocloud/zego-uikit-prebuilt/zego-uikit-prebuilt.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Network Error: Could not download Zego SDK from CDN."));
+      document.head.appendChild(script);
+    });
+  }
 
-          if (callId) {
-            try {
-              await fetch(`${BASE_URL}/calls/status_update/${callId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ call_status: 'rejected' })
-              });
-            } catch (err) { console.error("Error updating call status:", err); }
-          }
-        };
+  // ── Join Zego Room (called by BOTH caller and receiver after accept) ──
+  async function joinZegoRoom(callType) {
+    const callContainer = document.getElementById('zegoCallContainer');
+    callContainer.style.display = 'block';
+
+    const token = await window.NativeStorage.getItem('token');
+    const myName = contactName || document.getElementById('avatarInitial').textContent || 'User';
+
+    try {
+      await loadZegoSDK();
+      if (!window.ZegoUIKitPrebuilt) {
+        throw new Error("Zego SDK loaded but ZegoUIKitPrebuilt object is still missing!");
       }
 
-      const acceptBtn = document.getElementById('acceptCallOverlayBtn');
-      if (acceptBtn) {
-        acceptBtn.onclick = () => {
-          stopAllRinging();
-          overlay.style.display = 'none';
-
-          if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-            window.ws.send(JSON.stringify({
-              event: "call_accepted",
-              room_id: roomID
-            }));
-          }
-          const callIdParam = callId ? `&call_id=${callId}` : '';
-          window.location.href = `active_call.html?room_id=${roomID}&mode=receiver&call_type=${callType}&name=${encodeURIComponent(callerName)}${callIdParam}`;
-        };
+      let data = prefetchedZegoToken;
+      if (!data) {
+        console.log("Fetching Zego token on demand...");
+        const res = await fetch(`${BASE_URL}/zego/generate_token?user_id=${myUserId}&room_id=${roomId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        data = await res.json();
+      } else {
+        console.log("⚡ Using PRE-FETCHED Zego token for < 0.5s connection!");
       }
+
+      const appID = data.app_id;
+      const serverToken = data.token;
+      const userID = myUserId;
+
+      if (!appID || !serverToken) {
+        throw new Error(`Invalid token or AppID. Reason: ${data.detail || 'Unknown'}`);
+      }
+
+      const kitToken = window.ZegoUIKitPrebuilt.generateKitTokenForProduction(
+        appID, serverToken, roomId, userID, myName
+      );
+
+      const zp = window.ZegoUIKitPrebuilt.create(kitToken);
+      window.zp = zp;
+
+      const cleanupCall = () => {
+        if (!window.zp) return;
+        try {
+          window.zp.destroy();
+        } catch (e) {
+          console.warn("Zego destroy error:", e);
+        }
+        window.zp = null;
+        callContainer.style.display = 'none';
+        callContainer.innerHTML = '';
+        if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+          window.ws.send(JSON.stringify({ event: 'call_ended', room_id: roomId }));
+        }
+        if (window.Capacitor && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.TelecomManager) {
+          window.Capacitor.Plugins.TelecomManager.endCall();
+        }
+      };
+
+      zp.joinRoom({
+        container: callContainer,
+        sharedLinks: [],
+        scenario: {
+          mode: window.ZegoUIKitPrebuilt.OneONoneCall,
+        },
+        turnOnMicrophoneWhenJoining: true,
+        turnOnCameraWhenJoining: callType === 'video',
+        showPreJoinView: false,
+        showLeaveRoomConfirmDialog: false,
+        onLeaveRoom: cleanupCall,
+        onReturnToHomeScreen: cleanupCall,
+        onHangUp: cleanupCall
+      });
+
+    } catch (error) {
+      console.error("ZegoCloud Initialization failed:", error);
+      callContainer.style.display = 'none';
+      alert("Failed to start call: " + (error.message || JSON.stringify(error)));
     }
   }
 
-  // Prototype Call Flow Click Listener
+  // ══════════════════════════════════════════
+  // CALLER SIDE: Initiate call → show ringing → wait for accept
+  // ══════════════════════════════════════════
+  async function initiateCall(type) {
+    pendingCallType = type;
+    const callerName = contactName || 'Unknown';
+
+    // Show the outgoing call overlay
+    const overlay = document.getElementById('outgoingCallOverlay');
+    const nameEl = document.getElementById('outgoingCallerName');
+    const initialEl = document.getElementById('outgoingCallerInitial');
+    const typeEl = document.getElementById('outgoingCallType');
+
+    nameEl.textContent = `Calling ${callerName}...`;
+    initialEl.textContent = callerName.charAt(0).toUpperCase();
+    typeEl.textContent = type === 'video' ? '📹 Video Call' : '📞 Voice Call';
+    overlay.style.display = 'flex';
+
+    // Play outgoing caller tune
+    outgoingAudio = createLoopAudio('./sounds/caller_tune.mp3');
+    outgoingAudio.play().catch(e => console.log('Caller tune blocked:', e));
+
+    // Send incoming_call event to receiver via WebSocket
+    if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+      const myName = document.getElementById('avatarInitial').textContent || 'User';
+      window.ws.send(JSON.stringify({
+        event: 'incoming_call',
+        call_type: type,
+        room_id: roomId,
+        caller_name: myName,
+        caller_id: myUserId
+      }));
+      console.log('📞 Sent incoming_call event to receiver');
+    } else {
+      console.error('WebSocket not connected! Cannot signal receiver.');
+      stopAllRinging();
+      overlay.style.display = 'none';
+      alert('Cannot place call: not connected to server. Please wait and try again.');
+      return;
+    }
+
+    // Auto-cancel after 45 seconds if receiver doesn't pick up
+    callRingingTimeout = setTimeout(() => {
+      console.log('⏰ Call timed out — no answer');
+      cancelOutgoingCall();
+      showToast('No answer');
+    }, 45000);
+  }
+
+  // Cancel outgoing call
+  function cancelOutgoingCall() {
+    clearTimeout(callRingingTimeout);
+    stopAllRinging();
+
+    document.getElementById('outgoingCallOverlay').style.display = 'none';
+    pendingCallType = null;
+
+    // Notify receiver to dismiss their incoming call overlay
+    if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+      window.ws.send(JSON.stringify({
+        event: 'call_cancelled',
+        room_id: roomId,
+        caller_id: myUserId
+      }));
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // RECEIVER SIDE: Show incoming call UI
+  // ══════════════════════════════════════════
+  function showIncomingCall(callerName, callType) {
+    pendingCallType = callType;
+
+    const overlay = document.getElementById('incomingCallOverlay');
+    const nameEl = document.getElementById('incomingCallerName');
+    const initialEl = document.getElementById('incomingCallerInitial');
+    const typeEl = document.getElementById('incomingCallType');
+
+    nameEl.textContent = callerName || 'Incoming Call';
+    initialEl.textContent = (callerName || '?').charAt(0).toUpperCase();
+    typeEl.textContent = callType === 'video' ? '📹 Video Call' : '📞 Voice Call';
+    overlay.style.display = 'flex';
+
+    // Play ringtone
+    incomingAudio = createLoopAudio('./sounds/ringtone.mp3');
+    incomingAudio.play().catch(e => console.log('Ringtone blocked:', e));
+
+    // Prefetch Zego token immediately to eliminate 2s connection delay on answer
+    prefetchedZegoToken = null;
+    window.NativeStorage.getItem('token').then(token => {
+      fetch(`${BASE_URL}/zego/generate_token?user_id=${myUserId}&room_id=${roomId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).then(res => res.json()).then(data => {
+        prefetchedZegoToken = data;
+        console.log("⚡ Zego token pre-fetched successfully during ringing!");
+      }).catch(e => console.error("Failed to prefetch token", e));
+    });
+
+    // Auto-dismiss after 45s
+    callRingingTimeout = setTimeout(() => {
+      dismissIncomingCall();
+      showToast('Missed call');
+    }, 45000);
+  }
+
+  function dismissIncomingCall() {
+    clearTimeout(callRingingTimeout);
+    stopAllRinging();
+    document.getElementById('incomingCallOverlay').style.display = 'none';
+    pendingCallType = null;
+  }
+
+  // ══════════════════════════════════════════
+  // WEBSOCKET CALL SIGNALING HANDLER
+  // ══════════════════════════════════════════
+  // This is injected into the existing ws.onmessage handler
+  const originalWsOnMessage = null; // Will be patched below
+
+  function handleCallSignaling(payload) {
+    switch (payload.event) {
+      case 'incoming_call':
+        console.log('📲 Received incoming_call from', payload.caller_name);
+        showIncomingCall(payload.caller_name || contactName, payload.call_type || 'audio');
+        return true;
+
+      case 'call_accepted':
+        console.log('✅ Receiver accepted the call!');
+        clearTimeout(callRingingTimeout);
+        stopAllRinging();
+        document.getElementById('outgoingCallOverlay').style.display = 'none';
+        // Caller now joins the Zego room
+        joinZegoRoom(pendingCallType || 'audio');
+        return true;
+
+      case 'call_cancelled':
+        console.log('❌ Caller cancelled the call');
+        dismissIncomingCall();
+        showToast('Call cancelled');
+        return true;
+
+      case 'call_declined':
+      case 'call_rejected':
+        console.log('🚫 Receiver declined the call');
+        clearTimeout(callRingingTimeout);
+        stopAllRinging();
+        document.getElementById('outgoingCallOverlay').style.display = 'none';
+        showToast('Call declined');
+        pendingCallType = null;
+        return true;
+
+      case 'call_ended':
+        console.log('📴 Call ended by other party');
+        stopAllRinging();
+        const callContainer = document.getElementById('zegoCallContainer');
+        callContainer.style.display = 'none';
+        callContainer.innerHTML = '';
+        showToast('Call ended');
+        return true;
+    }
+    return false; // Not a call signaling event
+  }
+
+  // ── Patch the WebSocket onmessage to intercept call events ──
+  // We watch for window.ws changes and re-patch on reconnect
+  let lastPatchedWs = null;
+  function patchWebSocketForCalls() {
+    const checkInterval = setInterval(() => {
+      if (window.ws && window.ws.onmessage && window.ws !== lastPatchedWs) {
+        const originalHandler = window.ws.onmessage;
+        window.ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (handleCallSignaling(payload)) {
+              return; // Handled by call signaling, don't pass to chat handler
+            }
+          } catch (e) {
+            // Not JSON or parse error, let original handler deal with it
+          }
+          // Pass to original chat message handler
+          originalHandler(event);
+        };
+        lastPatchedWs = window.ws;
+        console.log('📞 Call signaling patched into WebSocket');
+      }
+    }, 500);
+  }
+  patchWebSocketForCalls();
+
+  // ── UI Button Bindings ──
+
+  // Cancel outgoing call button
+  const cancelOutgoingBtn = document.getElementById('cancelOutgoingCallBtn');
+  if (cancelOutgoingBtn) {
+    cancelOutgoingBtn.addEventListener('click', cancelOutgoingCall);
+  }
+
+  // Accept incoming call button
+  const acceptCallBtn = document.getElementById('acceptCallBtn');
+  if (acceptCallBtn) {
+    acceptCallBtn.addEventListener('click', () => {
+      console.log('🟢 Accepting incoming call...');
+      const callType = pendingCallType || 'audio';
+      dismissIncomingCall();
+
+      // Notify caller that we accepted
+      if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+        window.ws.send(JSON.stringify({
+          event: 'call_accepted',
+          room_id: roomId,
+          caller_id: myUserId
+        }));
+      }
+
+      // Receiver joins the Zego room
+      joinZegoRoom(callType);
+    });
+  }
+
+  // Reject incoming call button
+  const rejectCallBtn = document.getElementById('rejectCallBtn');
+  if (rejectCallBtn) {
+    rejectCallBtn.addEventListener('click', () => {
+      console.log('🔴 Rejecting incoming call...');
+      dismissIncomingCall();
+
+      // Notify caller that we declined
+      if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+        window.ws.send(JSON.stringify({
+          event: 'call_declined',
+          room_id: roomId,
+          caller_id: myUserId
+        }));
+      }
+
+      showToast('Call declined');
+    });
+  }
+
+  // ── Bind Voice/Video Call Buttons (Header) ──
   const voiceCallBtn = document.getElementById('voiceCallBtn');
   if (voiceCallBtn) {
-    voiceCallBtn.addEventListener('click', async () => {
-      PermissionGuard.intercept({ audio: true }, async () => {
-        const recipientName = document.getElementById('roomTitle')?.textContent || 'Family Member';
-        const myName = myUserEmail ? myUserEmail.split('@')[0] : 'Family Member';
-
-        let callId = null;
-        try {
-          const res = await fetch(`${BASE_URL}/calls/start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ room_id: roomId, call_type: 'audio' })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            callId = data.call_id;
-          }
-        } catch (err) {
-          console.error("Failed to start call log:", err);
-        }
-
-        const signalMsg = {
-          event: "incoming_call",
-          room_id: roomId,
-          caller_name: myName,
-          call_type: 'audio',
-          call_id: callId
-        };
-        if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-          window.ws.send(JSON.stringify(signalMsg));
-        }
-
-        setTimeout(() => {
-          const callIdParam = callId ? `&call_id=${callId}` : '';
-          window.location.href = `audio_activecall.html?room_id=${roomId}&mode=caller&call_type=audio&name=${encodeURIComponent(recipientName)}&state=ringing${callIdParam}`;
-        }, 200);
-      });
+    voiceCallBtn.addEventListener('click', () => {
+      PermissionGuard.intercept({ audio: true, video: false }, () => initiateCall('audio'));
     });
   }
 
   const videoCallBtn = document.getElementById('videoCallBtn');
   if (videoCallBtn) {
-    videoCallBtn.addEventListener('click', async () => {
-      PermissionGuard.intercept({ audio: true, video: true }, async () => {
-        const recipientName = document.getElementById('roomTitle')?.textContent || 'Family Member';
-        const myName = myUserEmail ? myUserEmail.split('@')[0] : 'Family Member';
-
-        let callId = null;
-        try {
-          const res = await fetch(`${BASE_URL}/calls/start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ room_id: roomId, call_type: 'video' })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            callId = data.call_id;
-          }
-        } catch (err) {
-          console.error("Failed to start call log:", err);
-        }
-
-        const signalMsg = {
-          event: "incoming_call",
-          room_id: roomId,
-          caller_name: myName,
-          call_type: 'video',
-          call_id: callId
-        };
-        if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-          window.ws.send(JSON.stringify(signalMsg));
-        }
-
-        setTimeout(() => {
-          const callIdParam = callId ? `&call_id=${callId}` : '';
-          window.location.href = `active_call.html?room_id=${roomId}&mode=caller&call_type=video&name=${encodeURIComponent(recipientName)}&state=ringing${callIdParam}`;
-        }, 200);
-      });
+    videoCallBtn.addEventListener('click', () => {
+      PermissionGuard.intercept({ audio: true, video: true }, () => initiateCall('video'));
     });
+  }
+
+  // ── Cold Boot Auto-Answer Support ──
+  const autoAnswerParam = urlParams.get('auto_answer') === 'true';
+  if (autoAnswerParam) {
+    console.log("⚡ Cold Boot: Auto-answering incoming call!");
+    const callTypeParam = urlParams.get('call_type') || 'video';
+    pendingCallType = callTypeParam;
+    
+    // Give WS a tiny bit of time to connect so we can send call_accepted
+    setTimeout(() => {
+      const acceptCallBtn = document.getElementById('acceptCallBtn');
+      if (acceptCallBtn) acceptCallBtn.click();
+    }, 1000);
   }
 
 });

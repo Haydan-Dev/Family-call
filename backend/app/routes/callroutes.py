@@ -49,44 +49,7 @@ async def call_initialize(call_data: callrequest, user_id: str = Depends(get_cur
         call_id = await call_initialize_db(db, user_id, db_call_data)
         
         if call_id:
-            # ── PHASE 4: VOIP DATA PAYLOAD FIREBASE TRIGGER ──
-            receiver = await db.users.find_one({"_id": receiver_id})
-            caller = await db.users.find_one({"_id": user_id})
-            caller_name = (caller.get("full_name") if caller else None) or "Family"
-            
-            if receiver:
-                fcm_token = (receiver.get("fcm_tokens") or {}).get("android")
-                if fcm_token:
-                    call_type_label = (call_data.call_type or "video").capitalize()
-                    
-                    def send_voip_push():
-                        try:
-                            # 🎯 DATA-ONLY payload — ensures onMessageReceived fires
-                            # in ALL states (foreground, background, KILLED).
-                            # MyFirebaseMessagingService.java builds the notification natively.
-                            message = messaging.Message(
-                                data={
-                                    "event": "incoming_call",
-                                    "call_id": str(call_id),
-                                    "call_type": call_data.call_type,
-                                    "caller_id": str(user_id),
-                                    "caller_name": caller_name,
-                                    "room_id": str(call_data.room_id)
-                                },
-                                android=messaging.AndroidConfig(
-                                    priority="high",
-                                    ttl=datetime.timedelta(seconds=45)
-                                ),
-                                token=fcm_token
-                            )
-                            messaging.send(message)
-                            logger.info(f"📞 VoIP push sent to {receiver_id}")
-                        except Exception as e:
-                            logger.error(f"FCM VoIP Error [{receiver_id}]: {str(e)}")
-                    
-                    # Fire and forget — non-blocking
-                    asyncio.create_task(asyncio.to_thread(send_voip_push))
-            # ─────────────────────────────────────────────────
+            # FCM VoIP payload removed. ZegoCloud CallKit will handle ring/wake-up natively.
             
             return {"status": 200, "Message": "Call is started and Noted in DB Successfully", "call_id": call_id} 
         else:

@@ -373,23 +373,42 @@
     }
 
     async function startMedia() {
-      try {
-        console.log("Acquiring hardware-tuned high-clarity audio stream...");
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
-            video: false 
-        });
-        
-        // Attach track instantly if connection is already forming
-        if (peerConnection) {
-          const senders = peerConnection.getSenders();
-          const audioSender = senders.find(s => s.track === null || (s.track && s.track.kind === 'audio'));
-          if (audioSender && audioSender.replaceTrack && localStream.getAudioTracks().length > 0) {
-            audioSender.replaceTrack(localStream.getAudioTracks()[0]);
-          }
+      const attachTracks = () => {
+        if (!localStream || !peerConnection) return;
+        const senders = peerConnection.getSenders();
+        const audioSender = senders.find(s => s.track === null || (s.track && s.track.kind === 'audio'));
+        if (audioSender && audioSender.replaceTrack && localStream.getAudioTracks().length > 0) {
+          audioSender.replaceTrack(localStream.getAudioTracks()[0]);
         }
-      } catch (err) {
-        console.error("Failed to acquire media:", err);
+      };
+
+      const attemptMedia = async () => {
+        try {
+          console.log("Acquiring hardware-tuned high-clarity audio stream...");
+          localStream = await navigator.mediaDevices.getUserMedia({ 
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
+              video: false 
+          });
+          return true;
+        } catch (err) {
+          console.warn("Failed to acquire media (likely lock screen):", err);
+          return false;
+        }
+      };
+
+      let success = await attemptMedia();
+      if (success) {
+        attachTracks();
+      } else {
+        console.log("Starting media retry loop for lock-screen bypass...");
+        const mediaInterval = setInterval(async () => {
+          success = await attemptMedia();
+          if (success) {
+            console.log("Media finally acquired after retry!");
+            clearInterval(mediaInterval);
+            attachTracks();
+          }
+        }, 1500);
       }
 
       // Trigger browser audio autoplay unlock
@@ -400,19 +419,39 @@
 
     // Async main execution function
     async function main() {
-      token = await window.NativeStorage.getItem('token');
+      // 🚨 KILLED STATE FIX: Retry token fetch because NativeStorage
+      // may not be ready yet during cold boot (Capacitor bridge initializing)
+      let retries = 0;
+      const MAX_TOKEN_RETRIES = 10;
+      while (!token && retries < MAX_TOKEN_RETRIES) {
+        try {
+          token = await window.NativeStorage.getItem('token');
+        } catch(e) {
+          console.warn(`Token fetch attempt ${retries+1} failed:`, e);
+        }
+        if (!token) {
+          retries++;
+          console.log(`⏳ Token not ready yet, retry ${retries}/${MAX_TOKEN_RETRIES}...`);
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+
       if (token) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           myUserId = payload.sub || payload.id || payload.user_id || payload.owner_id || myUserId;
+          console.log("✅ Token parsed. myUserId =", myUserId);
         } catch (e) { }
+      } else {
+        console.error("❌ CRITICAL: Token could NOT be fetched after all retries!");
       }
 
       const wsUrl = `${WS_URL}/ws/call/${roomId}/${myUserId}`;
+      console.log("🔌 Connecting WebSocket:", wsUrl);
       ws = new WebSocket(wsUrl);
 
       ws.onopen = async () => {
-        console.log("Call room connected via WebSocket.");
+        console.log("✅ Call room connected via WebSocket. Mode:", urlParams.get('mode'));
         setStatusText("Initializing WebRTC...", "#FFC700");
         const mode = urlParams.get('mode');
         const state = urlParams.get('state');
@@ -430,14 +469,41 @@
               outgoingAudio.play(); 
             } catch (e) { console.log("Outgoing play blocked:", e); }
           }
-          console.log("Waiting for receiver, sending caller_ready ping...");
+          console.log("Waiting for receiver, starting aggressive caller_ready ping...");
           ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
+          const pingInterval = setInterval(() => {
+            if (isCallInitiated || ws.readyState !== WebSocket.OPEN) {
+              clearInterval(pingInterval);
+              return;
+            }
+            console.log("Pinging caller_ready...");
+            ws.send(JSON.stringify({ event: "caller_ready", room_id: roomId }));
+          }, 1500);
         } else {
+          // 🚨 KILLED STATE FIX: Receiver sends AGGRESSIVE receiver_ready pings
+          console.log("📡 Receiver: Sending aggressive receiver_ready pings...");
           ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
+          
+          const receiverPingInterval = setInterval(() => {
+            if (isCallConnected || ws.readyState !== WebSocket.OPEN) {
+              clearInterval(receiverPingInterval);
+              return;
+            }
+            console.log("📡 Receiver pinging receiver_ready...");
+            ws.send(JSON.stringify({ event: "receiver_ready", room_id: roomId }));
+          }, 1500);
         }
 
         // Initialize hardware in background WITHOUT blocking signaling!
         startMedia();
+      };
+
+      ws.onerror = (err) => {
+        console.error("❌ WebSocket ERROR:", err);
+      };
+
+      ws.onclose = (ev) => {
+        console.warn("⚠️ WebSocket CLOSED. Code:", ev.code, "Reason:", ev.reason);
       };
 
       ws.onmessage = async (event) => {

@@ -11,5 +11,9 @@ class Settings:
     UPLOAD_DIR: str = "app/static/uploads"
     # Ye tera Abu-Hurairah ka base URL hoga (port 8000 ke sath)
     SERVER_URL: str = "http://127.0.0.1:8000"
+    
+    # ZegoCloud Calling
+    ZEGO_APP_ID: str = os.getenv("ZEGO_APP_ID", "")
+    ZEGO_SERVER_SECRET: str = os.getenv("ZEGO_SERVER_SECRET", "")
 
 settings = Settings()

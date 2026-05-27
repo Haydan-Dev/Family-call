@@ -653,22 +653,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const payload = JSON.parse(event.data);
 
-        // ── 🚨 INCOMING CALL via WebSocket (receiver is on home page) ──
-        if (payload.event === 'incoming_call') {
-          console.log('🚨 INCOMING CALL on Home Page!', payload);
-          const callType = payload.call_type || 'video';
-          const roomId = payload.room_id || '';
-          const callId = payload.call_id || '';
-          const callerName = encodeURIComponent(payload.caller_name || 'Family');
-
-          if (callType === 'audio') {
-            window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-          } else {
-            window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-          }
-          return;
-        }
-
         if (payload.event === 'STATUS_UPDATE' && payload.new_status === 'seen' && payload.room_id) {
           const card = document.querySelector(`.card-item[data-room-id="${payload.room_id}"]`);
           if (card) {
@@ -742,24 +726,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── PHASE 1: PUSH NOTIFICATIONS — FCM TOKEN EXTRACTION ───────────────────
   // Strict native-only execution. Will silently no-op on web browsers.
   
-  // Define global handleAndroidIntent so native code can evaluate it
   window.handleAndroidIntent = function(data) {
     console.log('🚨 [handleAndroidIntent] Received custom native intent:', JSON.stringify(data));
     if (!data || !data.event) return;
 
-    if (data.event === 'incoming_call') {
-      const callType = data.call_type || 'video';
-      const roomId = data.room_id || '';
-      const callId = data.call_id || '';
-      const callerName = encodeURIComponent(data.caller_name || 'Family');
-
-      console.log(`🚨 Routing to incoming call screen: type=${callType}, room=${roomId}`);
-      if (callType === 'audio') {
-        window.location.href = `audio_incommingcall.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-      } else {
-        window.location.href = `incoming_call.html?room_id=${roomId}&call_id=${callId}&caller_name=${callerName}`;
-      }
-    } else if (data.event === 'new_message') {
+    if (data.event === 'new_message') {
       const roomId = data.room_id || '';
       const senderName = encodeURIComponent(data.sender_name || 'Family Member');
       console.log(`📩 Routing to chat room: room=${roomId}`);
@@ -836,12 +807,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 📩 FOREGROUND: Push received while app is actively open
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 [Foreground] Payload received:', JSON.stringify(notification));
-      const data = notification.data || {};
-
-      if (data.event === 'incoming_call') {
-        console.log('🚨 INCOMING CALL (Foreground)! Waking up UI...', data);
-        window.handleAndroidIntent(data);
-      }
     });
 
     // 👆 BACKGROUND/KILLED: User taps the OS notification
@@ -851,15 +816,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.handleAndroidIntent(data);
     });
 
-    // 👆 FOREGROUND TAP: User taps a local notification (call) while app is open
+    // 👆 FOREGROUND TAP: User taps a local notification
     const LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
     if (LocalNotifications) {
       LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
         console.log('🚨 [Local Notification Tap]', action);
         const payload = action.notification.extra;
-        if (payload && payload.event === 'incoming_call') {
-          window.handleAndroidIntent(payload);
-        }
       });
     }
 

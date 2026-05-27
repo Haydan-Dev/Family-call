@@ -54,20 +54,17 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     }
 
     /**
-     * 🚨 CALL CANCELLED / TERMINATED — dismiss ringing notification immediately
+     * 🚨 CALL CANCELLED / TERMINATED — stop ringing service and dismiss everything
      */
     private void cancelIncomingCallNotification(Map<String, String> data) {
-        Log.d(TAG, "🚨 cancelIncomingCallNotification: Cancelling ringing notification 1001");
-        try {
-            android.app.NotificationManager manager = (android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            if (manager != null) {
-                manager.cancel(1001);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error cancelling notification 1001: " + e.getMessage());
+        Log.d(TAG, "🚨 cancelIncomingCallNotification: Stopping ringing service");
+        
+        if (CallConnectionService.currentConnection != null) {
+            CallConnectionService.currentConnection.onDisconnect();
+            CallConnectionService.currentConnection = null;
         }
 
-        // Broadcast to close IncomingCallActivity if open
+        // Broadcast to close UI if open
         Intent broadcast = new Intent("com.haydan.familycall.ACTION_CALL_CANCELLED");
         broadcast.putExtra("room_id", data.getOrDefault("room_id", ""));
         sendBroadcast(broadcast);
@@ -84,9 +81,6 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         }
     }
 
-    /**
-     * 🚨 INCOMING CALL — Start Native Lock Screen UI and Ringtone
-     */
     private void showIncomingCallNotification(Map<String, String> data) {
         String callerName = data.getOrDefault("caller_name", "Family Member");
         if (callerName.trim().isEmpty()) callerName = "Family Member";
@@ -96,35 +90,99 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
         wakeScreen();
 
-        // 1. Intent for Full Screen UI (When screen is locked) - Now routing directly to MainActivity
-        Intent fullScreenIntent = new Intent(this, MainActivity.class);
-        fullScreenIntent.putExtra("incoming_call", "true");
-        fullScreenIntent.putExtra("call_id", callId);
-        fullScreenIntent.putExtra("room_id", roomId);
-        fullScreenIntent.putExtra("caller_name", callerName);
-        fullScreenIntent.putExtra("call_type", callType);
-        fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        try {
+            android.telecom.TelecomManager telecomManager = (android.telecom.TelecomManager) getSystemService(Context.TELECOM_SERVICE);
+            android.content.ComponentName componentName = new android.content.ComponentName(this, CallConnectionService.class);
+            android.telecom.PhoneAccountHandle phoneAccountHandle = new android.telecom.PhoneAccountHandle(componentName, "FamilyCallAccount");
+            
+            // Register PhoneAccount
+            android.telecom.PhoneAccount phoneAccount = android.telecom.PhoneAccount.builder(phoneAccountHandle, "Family Call")
+                .setCapabilities(android.telecom.PhoneAccount.CAPABILITY_SELF_MANAGED)
+                .setShortDescription("Family Call")
+                .build();
+            telecomManager.registerPhoneAccount(phoneAccount);
+
+            android.os.Bundle extras = new android.os.Bundle();
+            android.os.Bundle callExtras = new android.os.Bundle();
+            callExtras.putString("room_id", roomId);
+            callExtras.putString("call_id", callId);
+            callExtras.putString("caller_name", callerName);
+            callExtras.putString("call_type", callType);
+            
+            extras.putBundle(android.telecom.TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, callExtras);
+            
+            telecomManager.addNewIncomingCall(phoneAccountHandle, extras);
+            Log.d(TAG, "🚀 TelecomManager.addNewIncomingCall invoked successfully!");
+
+        } catch (SecurityException se) {
+            Log.e(TAG, "⚠️ SecurityException: Missing MANAGE_OWN_CALLS permission or account not enabled: " + se.getMessage());
+            showFallbackNotification(callId, roomId, callerName, callType);
+        } catch (Exception e) {
+            Log.e(TAG, "⚠️ Failed to use TelecomManager: " + e.getMessage());
+            showFallbackNotification(callId, roomId, callerName, callType);
+        }
+    }
+
+    /**
+     * 🚨 FALLBACK NOTIFICATION — for when Foreground Service can't start (Realme/ColorOS)
+     * This creates its OWN notification channel with sound+vibration so ringtone always plays.
+     */
+    private void showFallbackNotification(String callId, String roomId, String callerName, String callType) {
+        Log.d(TAG, "🚨 Posting FALLBACK notification directly!");
+
+        // Create fallback channel WITH sound (the main channel has no sound since service uses MediaPlayer)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Uri ringtoneUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.ringtone);
+            android.media.AudioAttributes audioAttributes = new android.media.AudioAttributes.Builder()
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .build();
+
+            android.app.NotificationChannel fallbackChannel = new android.app.NotificationChannel(
+                    "incoming_calls_fallback_v1",
+                    "Incoming Calls (Fallback)",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            fallbackChannel.setDescription("Fallback call notifications with sound");
+            fallbackChannel.enableVibration(true);
+            fallbackChannel.setVibrationPattern(new long[]{0, 1000, 500, 1000, 500, 1000});
+            fallbackChannel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            fallbackChannel.setBypassDnd(true);
+            fallbackChannel.setSound(ringtoneUri, audioAttributes);
+
+            NotificationManager mgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (mgr != null) mgr.createNotificationChannel(fallbackChannel);
+        }
+
+        // Build intents — all go DIRECTLY to MainActivity
+        Intent mainIntent = new Intent(this, MainActivity.class);
+        mainIntent.putExtra("incoming_call", "true");
+        mainIntent.putExtra("call_id", callId);
+        mainIntent.putExtra("room_id", roomId);
+        mainIntent.putExtra("caller_name", callerName);
+        mainIntent.putExtra("call_type", callType);
+        mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         int requestCode = (int) System.currentTimeMillis();
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(
-                this, requestCode, fullScreenIntent,
+                this, requestCode, mainIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        // 2. Intent for Answer Button (Heads-up notification)
-        Intent answerIntent = new Intent(this, MainActivity.class);
-        answerIntent.setAction("com.haydan.familycall.ACTION_ANSWER_CALL");
-        answerIntent.putExtra("call_id", callId);
-        answerIntent.putExtra("room_id", roomId);
-        answerIntent.putExtra("call_type", callType);
-        answerIntent.putExtra("caller_name", callerName);
-        answerIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent answerPendingIntent = PendingIntent.getActivity(
-                this, requestCode + 1, answerIntent,
+        // Accept
+        Intent acceptIntent = new Intent(this, MainActivity.class);
+        acceptIntent.setAction("com.haydan.familycall.ACTION_ANSWER_CALL");
+        acceptIntent.putExtra("call_id", callId);
+        acceptIntent.putExtra("room_id", roomId);
+        acceptIntent.putExtra("caller_name", callerName);
+        acceptIntent.putExtra("call_type", callType);
+        acceptIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent acceptPendingIntent = PendingIntent.getActivity(
+                this, requestCode + 1, acceptIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        // 3. Intent for Decline Button (Heads-up notification) - Now routing directly to MainActivity
+        // Decline
         Intent declineIntent = new Intent(this, MainActivity.class);
         declineIntent.setAction("com.haydan.familycall.ACTION_DECLINE_CALL");
         declineIntent.putExtra("call_id", callId);
@@ -138,9 +196,10 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         Uri ringtoneUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.ringtone);
         String callTypeLabel = callType.substring(0, 1).toUpperCase() + callType.substring(1);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "incoming_calls_channel_v4")
+        // Fallback channel HAS sound, so notification will ring even without service
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "incoming_calls_fallback_v1")
                 .setSmallIcon(android.R.drawable.ic_menu_call)
-                .setContentTitle(callerName + " is calling...")
+                .setContentTitle(callerName)
                 .setContentText("Incoming " + callTypeLabel + " Call")
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
@@ -150,18 +209,19 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                 .setSound(ringtoneUri)
                 .setVibrate(new long[]{0, 1000, 500, 1000, 500, 1000})
                 .setFullScreenIntent(fullScreenPendingIntent, true)
+                .setContentIntent(fullScreenPendingIntent)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePendingIntent)
-                .addAction(android.R.drawable.ic_menu_call, "Answer", answerPendingIntent);
+                .addAction(android.R.drawable.ic_menu_call, "Accept", acceptPendingIntent);
 
         Notification notification = builder.build();
-        notification.flags |= Notification.FLAG_INSISTENT; // Loops the native ringtone!
+        notification.flags |= Notification.FLAG_INSISTENT;
 
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager != null) {
             manager.notify(1001, notification);
         }
 
-        Log.d(TAG, "🚨 Native Notification with Full Screen Intent Triggered!");
+        Log.d(TAG, "🚨 Fallback notification posted with sound!");
     }
 
     /**
@@ -191,7 +251,7 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
         Uri msgSoundUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.notification);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "messages_channel_v3")
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, "messages_channel_v4")
             .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setContentTitle(senderName)
             .setContentText(body)

@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="static/css/style.css">
   <script src="static/js/auth_guard.js"></script>
+  <script src="static/js/zego-uikit-prebuilt.js"></script>
 </head>
 
 <body>
@@ -231,58 +232,52 @@
         </div>
       </div>
 
-      <!-- INCOMING CALL OVERLAY -->
-      <div id="incomingCallOverlay" class="slider-container"
-        style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; z-index:1000; background:#000; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px; box-sizing:border-box;">
-        <!-- Background decorative rings -->
-        <div class="call-bg-ring"
-          style="width:300px; height:300px; top:10%; left:10%; position:absolute; opacity:0.1; border: 2px solid #FFC700; border-radius:50%;">
+      <!-- OUTGOING CALL RINGING OVERLAY (Caller sees this while waiting) -->
+      <div id="outgoingCallOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:9998; background:linear-gradient(180deg,#0d0d0d 0%,#1a1200 100%); flex-direction:column; align-items:center; justify-content:center; gap:24px;">
+        <div style="width:100px; height:100px; border-radius:50%; background:rgba(255,199,0,0.1); border:2px solid rgba(255,199,0,0.3); display:flex; align-items:center; justify-content:center;">
+          <span id="outgoingCallerInitial" style="font-size:42px; font-weight:700; color:#FFC700;">?</span>
         </div>
-        <div class="call-bg-ring"
-          style="width:200px; height:200px; top:20%; left:20%; position:absolute; opacity:0.05; border: 2px solid #FFC700; border-radius:50%;">
+        <p id="outgoingCallerName" style="color:#fff; font-size:20px; font-weight:600; margin:0;">Calling...</p>
+        <p style="color:rgba(255,255,255,0.5); font-size:14px; margin:0;" id="outgoingCallType">Voice Call</p>
+        <div class="outgoing-pulse" style="width:16px; height:16px; border-radius:50%; background:#FFC700; animation:pulse-ring 1.5s ease-out infinite;"></div>
+        <button id="cancelOutgoingCallBtn" style="margin-top:40px; width:64px; height:64px; border-radius:50%; background:#e74c3c; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(231,76,60,0.4);">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 11.94 11.94 0 0 0 3.75.64 2 2 0 0 1 2 2v3.28a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 5.33 2h3.28a2 2 0 0 1 2 1.72 12.05 12.05 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.59 9.91"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        </button>
+        <p style="color:rgba(255,255,255,0.3); font-size:12px; margin-top:8px;">Tap to cancel</p>
+      </div>
+
+      <!-- INCOMING CALL OVERLAY (Receiver sees this) -->
+      <div id="incomingCallOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:9998; background:linear-gradient(180deg,#0d0d0d 0%,#001a00 100%); flex-direction:column; align-items:center; justify-content:center; gap:24px;">
+        <div style="width:100px; height:100px; border-radius:50%; background:rgba(37,211,102,0.1); border:2px solid rgba(37,211,102,0.3); display:flex; align-items:center; justify-content:center; animation:pulse-ring 1.5s ease-out infinite;">
+          <span id="incomingCallerInitial" style="font-size:42px; font-weight:700; color:#25D366;">?</span>
         </div>
-
-        <!-- Call Content -->
-        <div
-          style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:1002; width:100%;">
-          <p style="font-size:11px; color:#FFC700; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:8px">
-            Hamnasheen • Incoming Call</p>
-
-          <div class="call-avatar-ring"
-            style="width:120px; height:120px; border-radius:50%; border:3px solid #FFC700; display:flex; align-items:center; justify-content:center; background:rgba(255,199,0,0.05);">
-            <div id="incomingCallAvatar" style="font-size:40px; color:#fff; font-family:'DM Sans', sans-serif;">P</div>
+        <p id="incomingCallerName" style="color:#fff; font-size:22px; font-weight:600; margin:0;">Incoming Call</p>
+        <p style="color:rgba(255,255,255,0.5); font-size:14px; margin:0;" id="incomingCallType">Voice Call</p>
+        <div style="display:flex; gap:48px; margin-top:40px;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <button id="rejectCallBtn" style="width:64px; height:64px; border-radius:50%; background:#e74c3c; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(231,76,60,0.4);">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 11.94 11.94 0 0 0 3.75.64 2 2 0 0 1 2 2v3.28a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 5.33 2h3.28a2 2 0 0 1 2 1.72 12.05 12.05 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.59 9.91"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+            <span style="color:#e74c3c; font-size:12px; font-weight:500;">Decline</span>
           </div>
-
-          <p id="incomingCallName"
-            style="font-family:'Playfair Display',serif; font-size:28px; font-weight:700; color:#fff; margin-top:12px">
-            Papa</p>
-          <p id="incomingCallType" style="font-size:12px; color:#888">Voice Call</p>
-
-          <!-- Actions Row -->
-          <div
-            style="width:100%; display:flex; justify-content:space-around; align-items:center; margin-top:40px; padding:0 20px;">
-            <!-- Decline -->
-            <div id="declineCallOverlayBtn"
-              style="display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer;">
-              <div
-                style="width:60px; height:60px; border-radius:50%; background:#c0392b; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(192,57,43,0.3)">
-                <i class="ti ti-phone-off" style="font-size:24px; color:#fff"></i>
-              </div>
-              <span style="font-size:11px; color:#888">Decline</span>
-            </div>
-
-            <!-- Accept -->
-            <div id="acceptCallOverlayBtn"
-              style="display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer;">
-              <div
-                style="width:60px; height:60px; border-radius:50%; background:#25D366; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(37,211,102,0.3)">
-                <i class="ti ti-phone" style="font-size:24px; color:#fff"></i>
-              </div>
-              <span style="font-size:11px; color:#888">Accept</span>
-            </div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <button id="acceptCallBtn" style="width:64px; height:64px; border-radius:50%; background:#25D366; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 20px rgba(37,211,102,0.4);">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </button>
+            <span style="color:#25D366; font-size:12px; font-weight:500;">Accept</span>
           </div>
         </div>
       </div>
+
+
+
+      <style>
+        @keyframes pulse-ring {
+          0% { box-shadow: 0 0 0 0 rgba(255,199,0,0.4); }
+          70% { box-shadow: 0 0 0 20px rgba(255,199,0,0); }
+          100% { box-shadow: 0 0 0 0 rgba(255,199,0,0); }
+        }
+      </style>
 
       <!-- Toast Container -->
       <div id="toastContainer" class="toast-container"></div>
@@ -293,6 +288,11 @@
   <script src="static/js/config.js"></script>
   <script src="static/js/permission_guard.js"></script>
   <script src="static/js/chat.js" defer></script>
+
+  <!-- ZEGOCLOUD CALL CONTAINER — must be direct child of body, outside .phone which has overflow:hidden -->
+  <!-- We add bottom margin and translateZ to ensure Zego's fixed UI is pushed above the Android gesture navigation bar -->
+  <div id="zegoCallContainer" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: calc(100dvh - 32px); z-index: 99999; background: #000; transform: translateZ(0); touch-action: auto !important; pointer-events: auto !important;"></div>
+
 
 </body>
 

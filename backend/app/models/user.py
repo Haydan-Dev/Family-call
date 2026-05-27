@@ -11,6 +11,7 @@ class User(BaseModel):
       password : str    
       profile_pic_url : Optional["str"] | None = None
       is_online :bool = False
+      is_2fa_enabled : bool = False
       last_seen_at : dt.datetime = Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
       created_at : dt.datetime = Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
       contacts : list = Field(default_factory=list)

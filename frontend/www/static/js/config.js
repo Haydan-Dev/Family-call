@@ -1,11 +1,11 @@
 // Cloudflare Tunnel Testing Configuration
-const TUNNEL_DOMAIN = "cheese-robot-rainbow-warranty.trycloudflare.com";
+const TUNNEL_DOMAIN = "lowest-antiques-ceremony-formerly.trycloudflare.com";
 
 // NO Port numbers here! Cloudflare handles it automatically.
 const BASE_URL = `https://${TUNNEL_DOMAIN}`; // Secure Fetch
 const WS_URL = `wss://${TUNNEL_DOMAIN}`;     // MUST be wss:// for Cloudflare!
 
-console.log("🚀 Cloudflare Testing via:", WS_URL);
+console.log("Cloudflare Testing via:", WS_URL);
 
 
 // /// Cloudflare hata diya, Tailscale Funnel Zindabad!
@@ -14,7 +14,7 @@ console.log("🚀 Cloudflare Testing via:", WS_URL);
 // const WS_URL = `wss://${TUNNEL_DOMAIN}`;     // WSS for Secure WebSockets
 
 // // Ye ensure karta hai ki WebRTC signaling block na ho
-// console.log("🚀 Signaling via Tunnel:", WS_URL);
+// console.log("Signaling via Tunnel:", WS_URL);
 
 // Global Authenticated Fetch Wrapper
 async function authFetch(url, options = {}) {

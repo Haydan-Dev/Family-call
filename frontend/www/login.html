@@ -40,9 +40,24 @@
 
   <form class="form-container" id="loginForm">
     <input type="email" id="email" class="input-field" placeholder="Email" required />
-    <input type="password" id="password" class="input-field" placeholder="Password" required />
+    <div style="position: relative; width: 100%;">
+      <input type="password" id="password" class="input-field" placeholder="Password" required style="padding-right: 48px;" />
+      <span style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #A0A0A0; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px;" onclick="const pwd = document.getElementById('password'); const isPwd = pwd.type === 'password'; pwd.type = isPwd ? 'text' : 'password'; this.innerHTML = isPwd ? '<svg width=\'20\' height=\'20\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24\'></path><line x1=\'1\' y1=\'1\' x2=\'23\' y2=\'23\'></line></svg>' : '<svg width=\'20\' height=\'20\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\'></path><circle cx=\'12\' cy=\'12\' r=\'3\'></circle></svg>';">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+      </span>
+    </div>
+    <div style="text-align: right; margin-top: -4px; margin-bottom: 4px; padding-right: 4px;">
+      <a href="forgot-password.html" style="color: #FFC700; font-size: 13px; text-decoration: none; font-weight: 500; font-family: 'DM Sans', sans-serif;">Forgot Password?</a>
+    </div>
     <button type="submit" class="btn-primary">Login</button>
     <a href="signup.html" class="btn-secondary">Don't have an account? Sign Up</a>
+  </form>
+
+  <form class="form-container hidden" id="twoFaForm">
+    <p style="color: #A0A0A0; font-size: 14px; text-align: center; margin-bottom: 20px;">We've sent a 6-digit code to your email. Please enter it below to verify your identity.</p>
+    <input type="text" id="twoFaCode" class="input-field" placeholder="Enter 6-digit code" maxlength="6" required style="text-align: center; font-size: 20px; letter-spacing: 4px;" />
+    <button type="submit" class="btn-primary">Verify Code</button>
+    <a href="#" id="backToLogin" class="btn-secondary" style="margin-top: 10px;">Back to Login</a>
   </form>
 
 </div>

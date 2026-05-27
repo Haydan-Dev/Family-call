@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Hamnasheen - Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="static/css/style.css">
+<script src="static/js/auth_guard.js"></script>
+<style>
+  .settings-section {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .settings-title {
+    font-size: 14px;
+    text-transform: uppercase;
+    color: #FFC700;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  .settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .settings-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .settings-row-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .settings-label {
+    font-size: 16px;
+    font-weight: 500;
+    color: #FFFFFF;
+  }
+  .settings-desc {
+    font-size: 13px;
+    color: #A0A0A0;
+  }
+  .toggle-switch {
+    position: relative;
+    width: 48px;
+    height: 24px;
+    background: #333;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  .toggle-switch.active {
+    background: #FFC700;
+  }
+  .toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: #FFF;
+    border-radius: 50%;
+    transition: left 0.3s;
+  }
+  .toggle-switch.active .toggle-knob {
+    left: 26px;
+  }
+  
+  .edit-input {
+    background: transparent;
+    border: none;
+    color: #FFF;
+    font-size: 16px;
+    font-family: inherit;
+    text-align: right;
+    outline: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .edit-input:focus {
+    border-color: #FFC700;
+  }
+  
+  .logout-btn-full {
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(255, 59, 48, 0.1);
+    color: #FF3B30;
+    border: 1px solid rgba(255, 59, 48, 0.2);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .logout-btn-full:active {
+    background: rgba(255, 59, 48, 0.2);
+  }
+</style>
+</head>
+<body>
+
+<div class="hn-root">
+  <div class="phone">
+
+    <div class="app-header" style="justify-content: center; position: relative; border-bottom: 1px solid rgba(255, 199, 0, 0.1);">
+      <h1 class="app-title">Settings</h1>
+    </div>
+
+    <div class="main-dashboard" style="padding-top: 10px;">
+      
+      <!-- Profile Section -->
+      <div class="settings-section">
+        <div class="settings-title">Profile</div>
+        <div class="settings-row">
+          <div class="settings-row-content">
+            <span class="settings-label">Full Name</span>
+            <span class="settings-desc">Tap to edit your display name</span>
+          </div>
+          <div>
+            <input type="text" id="nameInput" class="edit-input" placeholder="Loading..." />
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-content">
+            <span class="settings-label">Email</span>
+            <span class="settings-desc">Registered email address</span>
+          </div>
+          <div>
+            <span id="emailDisplay" style="color: #A0A0A0; font-size: 14px;">Loading...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Security Section -->
+      <div class="settings-section">
+        <div class="settings-title">Security</div>
+        <div class="settings-row">
+          <div class="settings-row-content">
+            <span class="settings-label">Two-Factor Auth (2FA)</span>
+            <span class="settings-desc">Require OTP code via email on login</span>
+          </div>
+          <div>
+            <div class="toggle-switch" id="twoFaToggle">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Account Section -->
+      <div class="settings-section" style="border: none; background: transparent; padding: 0;">
+        <button class="logout-btn-full" id="settingsLogoutBtn">
+          <i class="ti ti-logout" style="margin-right: 8px;"></i> Log Out
+        </button>
+      </div>
+
+    </div>
+
+    <div class="bottom-nav">
+      <div class="nav-item" onclick="window.location.href='home.html'" style="cursor: pointer;">
+        <i class="ti ti-message-2"></i>
+        <span>Chats</span>
+      </div>
+      <div class="nav-item" onclick="window.location.href='calls_history.html'" style="cursor: pointer;">
+        <i class="ti ti-phone"></i>
+        <span>Calls</span>
+      </div>
+      <div class="nav-item" style="flex:1.2">
+        <div class="nav-cam-btn"><i class="ti ti-camera"></i></div>
+      </div>
+      <div class="nav-item">
+        <i class="ti ti-users"></i>
+        <span>Family</span>
+      </div>
+      <div class="nav-item active">
+        <i class="ti ti-settings"></i>
+        <span>Settings</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="static/js/config.js"></script>
+<script src="static/js/settings.js"></script>
+</body>
+</html>

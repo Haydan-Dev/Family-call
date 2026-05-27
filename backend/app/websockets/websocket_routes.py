@@ -73,10 +73,19 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                 if msg_dict.get("event") in ("incoming_call", "call_accepted", "call_rejected", "call_cancelled", "call_declined", "call_ended"):
                     if recipient_id and recipient_id != user_id:
                         is_online = recipient_id in manager.active_connections
-                        await manager.send_personal_message(msg_dict, recipient_id)
+                        is_in_room = False
                         
-                        # If recipient is offline and event is call_cancelled, send FCM cancel push
-                        if not is_online and msg_dict.get("event") == "call_cancelled":
+                        if is_online:
+                            recipient_ws = manager.active_connections.get(recipient_id)
+                            if recipient_ws and hasattr(recipient_ws, 'url'):
+                                if f"/ws/chat/{room_id}" in str(recipient_ws.url):
+                                    is_in_room = True
+                                    
+                            await manager.send_personal_message(msg_dict, recipient_id)
+                        
+                        event_name = msg_dict.get("event")
+                        # If recipient is offline or on a different page, send FCM VoIP push
+                        if not is_in_room:
                             import logging
                             logger = logging.getLogger(__name__)
                             try:
@@ -91,13 +100,15 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                                         from firebase_admin import messaging
                                         import asyncio
                                         
-                                        def send_cancel_push():
+                                        def send_call_push():
                                             try:
                                                 message = messaging.Message(
                                                     data={
-                                                        "event": "call_cancelled",
+                                                        "event": event_name,
                                                         "room_id": str(room_id),
-                                                        "call_id": str(msg_dict.get("call_id", ""))
+                                                        "call_id": str(msg_dict.get("call_id", "")),
+                                                        "caller_name": str(msg_dict.get("caller_name", "Family Member")),
+                                                        "call_type": str(msg_dict.get("call_type", "voice"))
                                                     },
                                                     android=messaging.AndroidConfig(
                                                         priority="high",
@@ -106,12 +117,12 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: str = Qu
                                                     token=fcm_token
                                                 )
                                                 messaging.send(message)
-                                                logger.info(f"📞 VoIP cancel push sent to {recipient_id}")
+                                                logger.info(f"📞 VoIP Push ({event_name}) sent to {recipient_id}")
                                             except Exception as e:
-                                                logger.error(f"FCM Cancel Push Error: {str(e)}")
-                                        asyncio.create_task(asyncio.to_thread(send_cancel_push))
+                                                logger.error(f"FCM Call Push Error: {str(e)}")
+                                        asyncio.create_task(asyncio.to_thread(send_call_push))
                             except Exception as e:
-                                logger.error(f"WebSocket Call Cancel Push Error: {str(e)}")
+                                logger.error(f"WebSocket Call Push Error: {str(e)}")
                     continue
 
                 full_message = Message(

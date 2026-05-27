@@ -62,13 +62,23 @@ if (loginForm) {
 
       if (response.ok) {
         const data = await response.json();
-        const token = data.access_token;
-        if (token) {
-          await window.NativeStorage.setItem('token', token);
-          console.log("TOKEN ACQUIRED");
-          window.location.href = 'home.html';
+        
+        if (data.requires_2fa) {
+            loginForm.classList.add('hidden');
+            const twoFaForm = document.getElementById('twoFaForm');
+            if (twoFaForm) {
+                twoFaForm.classList.remove('hidden');
+                twoFaForm.dataset.email = email;
+            }
         } else {
-          alert('Login successful but token was not returned.');
+            const token = data.access_token;
+            if (token) {
+              await window.NativeStorage.setItem('token', token);
+              console.log("TOKEN ACQUIRED");
+              window.location.href = 'home.html';
+            } else {
+              alert('Login successful but token was not returned.');
+            }
         }
       } else {
         const errorData = await response.json();
@@ -82,4 +92,55 @@ if (loginForm) {
       submitBtn.disabled = false;
     }
   });
+}
+
+// --- 2FA LOGIC ---
+const twoFaForm = document.getElementById('twoFaForm');
+if (twoFaForm) {
+  twoFaForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = twoFaForm.dataset.email;
+    const code = document.getElementById('twoFaCode').value.trim();
+    
+    const submitBtn = twoFaForm.querySelector('.btn-primary');
+    submitBtn.textContent = 'Verifying...';
+    submitBtn.disabled = true;
+    
+    try {
+      const response = await fetch(`${BASE_URL}/users/login/verify-2fa`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, code })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const token = data.access_token;
+        if (token) {
+          await window.NativeStorage.setItem('token', token);
+          window.location.href = 'home.html';
+        }
+      } else {
+        const errorData = await response.json();
+        alert('Verification failed: ' + (errorData.detail || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error during 2FA:', error);
+      alert('Error connecting to server.');
+    } finally {
+      submitBtn.textContent = 'Verify Code';
+      submitBtn.disabled = false;
+    }
+  });
+
+  const backBtn = document.getElementById('backToLogin');
+  if (backBtn) {
+    backBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      twoFaForm.classList.add('hidden');
+      document.getElementById('loginForm').classList.remove('hidden');
+    });
+  }
 }
