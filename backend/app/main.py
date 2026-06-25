@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from app.db import connect_to_mongo, close_mongo_connection
+from fastapi.responses import RedirectResponse
 
 # Routers import (Tere wale same rahenge)
 from app.routes.authroute import router  as user_router
@@ -36,7 +37,7 @@ app.mount("/uploads", StaticFiles(directory="app/static/uploads"), name="uploads
 
 @app.get("/")
 def Home():
-    return {"message":"main.py is running completely fine !"}
+    return RedirectResponse(url="/static/www/index.html")
 
 # Tere saare include_router same rahenge
 app.include_router(user_router)

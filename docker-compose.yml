@@ -1,0 +1,15 @@
+services:
+  mongodb_server:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    restart: always
+  
+  fastapi_engine:
+    build: .
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongodb_server
+  
